@@ -27,7 +27,7 @@ ARGS=(
     OBJDUMP=llvm-objdump
     STRIP=llvm-strip
     CLANG_TRIPLE=aarch64-linux-gnu-
-    KCFLAGS=-w
+    KCFLAGS="-w -Wno-error=int-conversion"
     CONFIG_SECTION_MISMATCH_WARN_ONLY=y
 )
 
