@@ -14,14 +14,13 @@ export BUILD_CC="clang"
 command -v "$BUILD_CC" >/dev/null 2>&1 || { echo "ERROR: clang is not installed"; exit 1; }
 command -v "${BUILD_CROSS_COMPILE}gcc" >/dev/null 2>&1 || { echo "ERROR: AArch64 cross GCC is not installed"; exit 1; }
 
-mkdir -p "$RDIR/out"
+mkdir -p "$RDIR/build"
 rm -rf "$RDIR/build"
 mkdir -p "$RDIR/build"
 
 ARGS=(
     -C "$RDIR"
-    O="$RDIR/out"
-    "-j$(nproc)"
+    -j"$(nproc)"
     ARCH=arm64
     CROSS_COMPILE="$BUILD_CROSS_COMPILE"
     CC="$BUILD_CC"
@@ -37,20 +36,20 @@ ARGS=(
 )
 
 build_kernel() {
+    # Vendor Makefiles require the kernel source tree itself to be clean.
+    # Build in-tree instead of using O=out.
     make "${ARGS[@]}" clean
     make "${ARGS[@]}" mrproper
     make "${ARGS[@]}" a04e_defconfig
-    "$RDIR/scripts/kconfig/merge_config.sh" -m \
-        "$RDIR/out/.config" \
-        "$RDIR/arch/arm64/configs/custom.config"
+    "$RDIR/scripts/kconfig/merge_config.sh" -m "$RDIR/.config" "$RDIR/arch/arm64/configs/custom.config"
     make "${ARGS[@]}" olddefconfig
     make "${ARGS[@]}"
-    cp "$RDIR/out/arch/arm64/boot/Image.gz" "$RDIR/arch/arm64/boot/Image.gz"
+    cp "$RDIR/arch/arm64/boot/Image.gz" "$RDIR/build/Image.gz"
 }
 
 build_boot() {
     rm -f "$RDIR/AIK-Linux/split_img/boot.img-kernel" "$RDIR/AIK-Linux/boot.img"
-    cp "$RDIR/out/arch/arm64/boot/Image.gz" "$RDIR/AIK-Linux/split_img/boot.img-kernel"
+    cp "$RDIR/build/Image.gz" "$RDIR/AIK-Linux/split_img/boot.img-kernel"
     mkdir -p "$RDIR/AIK-Linux/ramdisk/"{debug_ramdisk,dev,metadata,mnt,proc,second_stage_resources,sys}
     cd "$RDIR/AIK-Linux"
     ./repackimg.sh --nosudo
