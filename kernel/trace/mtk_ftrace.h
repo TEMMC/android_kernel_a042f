@@ -36,7 +36,7 @@ TRACE_EVENT(tracing_on,
 
 #undef TRACE_INCLUDE_PATH
 #undef TRACE_INCLUDE_FILE
-#define TRACE_INCLUDE_PATH .
+#define TRACE_INCLUDE_PATH ../../kernel/trace
 #define TRACE_INCLUDE_FILE mtk_ftrace
 
 /* This part must be outside protection */
