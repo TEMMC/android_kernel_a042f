@@ -1,63 +1,67 @@
 #!/bin/bash
+set -e
+
 export ARCH=arm64
-export RDIR="$(pwd)"
+export RDIR="$(cd "$(dirname "$0")" && pwd)"
 export KBUILD_BUILD_USER="@ravindu644"
+export KBUILD_BUILD_HOST="github-actions"
 
-#init ksu next
-git submodule init && git submodule update
+git submodule update --init --recursive
 
-#export toolchain paths
-export BUILD_CROSS_COMPILE="${RDIR}/toolchains/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-"
-export BUILD_CC="${RDIR}/toolchains/clang-r383902/bin/clang"
+export BUILD_CROSS_COMPILE="aarch64-linux-gnu-"
+export BUILD_CC="clang"
 
-#output dir
-if [ ! -d "${RDIR}/out" ]; then
-    mkdir -p "${RDIR}/out"
-fi
+command -v "$BUILD_CC" >/dev/null 2>&1 || { echo "ERROR: clang is not installed"; exit 1; }
+command -v "${BUILD_CROSS_COMPILE}gcc" >/dev/null 2>&1 || { echo "ERROR: AArch64 cross GCC is not installed"; exit 1; }
 
-#build dir
-if [ ! -d "${RDIR}/build" ]; then
-    mkdir -p "${RDIR}/build"
-else
-    rm -rf "${RDIR}/build" && mkdir -p "${RDIR}/build"
-fi
+mkdir -p "$RDIR/out"
+rm -rf "$RDIR/build"
+mkdir -p "$RDIR/build"
 
-#build options
-export ARGS="
--C $(pwd) \\
-O=$(pwd)/out \\
--j$(nproc) \\
-ARCH=arm64 \\
-CROSS_COMPILE=${BUILD_CROSS_COMPILE} \\
-CC=${BUILD_CC} \\
-CLANG_TRIPLE=aarch64-linux-gnu- \\
-KCFLAGS=-w \\
-CONFIG_SECTION_MISMATCH_WARN_ONLY=y \\
-"
+ARGS=(
+    -C "$RDIR"
+    O="$RDIR/out"
+    "-j$(nproc)"
+    ARCH=arm64
+    CROSS_COMPILE="$BUILD_CROSS_COMPILE"
+    CC="$BUILD_CC"
+    LD=ld.lld
+    AR=llvm-ar
+    NM=llvm-nm
+    OBJCOPY=llvm-objcopy
+    OBJDUMP=llvm-objdump
+    STRIP=llvm-strip
+    CLANG_TRIPLE=aarch64-linux-gnu-
+    KCFLAGS=-w
+    CONFIG_SECTION_MISMATCH_WARN_ONLY=y
+)
 
-#build kernel image
-build_kernel(){
-    make ${ARGS} clean && make ${ARGS} mrproper
-    make ${ARGS} a04e_defconfig
-    ${RDIR}/scripts/kconfig/merge_config.sh -m "${RDIR}/out/.config" "${RDIR}/arch/arm64/configs/custom.config"
-    make ${ARGS} olddefconfig
-    make ${ARGS} || exit 1
-    cp out/arch/arm64/boot/Image.gz "${RDIR}/arch/arm64/boot/Image.gz"
+build_kernel() {
+    make "${ARGS[@]}" clean
+    make "${ARGS[@]}" mrproper
+    make "${ARGS[@]}" a04e_defconfig
+    "$RDIR/scripts/kconfig/merge_config.sh" -m \
+        "$RDIR/out/.config" \
+        "$RDIR/arch/arm64/configs/custom.config"
+    make "${ARGS[@]}" olddefconfig
+    make "${ARGS[@]}"
+    cp "$RDIR/out/arch/arm64/boot/Image.gz" "$RDIR/arch/arm64/boot/Image.gz"
 }
 
-#build boot.img
 build_boot() {
-    rm -f "${RDIR}/AIK-Linux/split_img/boot.img-kernel" "${RDIR}/AIK-Linux/boot.img"
-    cp "${RDIR}/out/arch/arm64/boot/Image.gz" "${RDIR}/AIK-Linux/split_img/boot.img-kernel"
-    mkdir -p "${RDIR}/AIK-Linux/ramdisk/"{debug_ramdisk,dev,metadata,mnt,proc,second_stage_resources,sys}
-    cd "${RDIR}/AIK-Linux" && ./repackimg.sh --nosudo && mv image-new.img "${RDIR}/build/boot.img"
+    rm -f "$RDIR/AIK-Linux/split_img/boot.img-kernel" "$RDIR/AIK-Linux/boot.img"
+    cp "$RDIR/out/arch/arm64/boot/Image.gz" "$RDIR/AIK-Linux/split_img/boot.img-kernel"
+    mkdir -p "$RDIR/AIK-Linux/ramdisk/"{debug_ramdisk,dev,metadata,mnt,proc,second_stage_resources,sys}
+    cd "$RDIR/AIK-Linux"
+    ./repackimg.sh --nosudo
+    mv image-new.img "$RDIR/build/boot.img"
 }
 
-#build odin flashable tar
-build_tar(){
-    cd "${RDIR}/build"
-    tar -cvf "KernelSU-Next-SM-A042F.tar" boot.img && rm boot.img
-    echo -e "\n[i] Build Finished..!\n" && cd "${RDIR}"
+build_tar() {
+    cd "$RDIR/build"
+    tar -cvf "KernelSU-Next-SM-A042F.tar" boot.img
+    rm boot.img
+    echo -e "\n[i] Build Finished..!\n"
 }
 
 build_kernel
