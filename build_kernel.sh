@@ -14,10 +14,6 @@ export BUILD_CC="clang"
 command -v "$BUILD_CC" >/dev/null 2>&1 || { echo "ERROR: clang is not installed"; exit 1; }
 command -v "${BUILD_CROSS_COMPILE}gcc" >/dev/null 2>&1 || { echo "ERROR: AArch64 cross GCC is not installed"; exit 1; }
 
-mkdir -p "$RDIR/build"
-rm -rf "$RDIR/build"
-mkdir -p "$RDIR/build"
-
 ARGS=(
     -C "$RDIR"
     -j"$(nproc)"
@@ -44,6 +40,7 @@ build_kernel() {
     "$RDIR/scripts/kconfig/merge_config.sh" -m "$RDIR/.config" "$RDIR/arch/arm64/configs/custom.config"
     make "${ARGS[@]}" olddefconfig
     make "${ARGS[@]}"
+    mkdir -p "$RDIR/build"
     cp "$RDIR/arch/arm64/boot/Image.gz" "$RDIR/build/Image.gz"
 }
 
