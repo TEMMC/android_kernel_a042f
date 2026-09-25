@@ -50,6 +50,6 @@ TRACE_EVENT(MET_touch,
 /* This part must be outside protection */
 #undef TRACE_INCLUDE_PATH
 #undef linux
-#define TRACE_INCLUDE_PATH .
+#define TRACE_INCLUDE_PATH ../../drivers/input/touchscreen/mediatek
 #define TRACE_INCLUDE_FILE met_ftrace_touch
 #include <trace/define_trace.h>
