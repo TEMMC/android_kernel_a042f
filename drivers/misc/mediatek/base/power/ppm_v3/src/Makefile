@@ -2,8 +2,8 @@
 # Copyright (C) 2018 MediaTek Inc.
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License version 2 as
-# published by the Free Software Foundation.
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation.
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -31,10 +31,11 @@ endif
 
 ccflags-y += \
 	-I$(PPM_ROOT_DIR)/inc \
-	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(CONFIG_MTK_PLATFORM)/include	\
-	-I$(srctree)/drivers/misc/mediatek/base/power/include	\
-	-I$(srctree)/drivers/misc/mediatek/base/power/$(CONFIG_MTK_PLATFORM)	\
-	-I$(srctree)/drivers/gpu/mediatek/gpufreq/include	\
+	-I$(PPM_ROOT_DIR)/src/mach/mt6765 \
+	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(CONFIG_MTK_PLATFORM)/include \
+	-I$(srctree)/drivers/misc/mediatek/base/power/include \
+	-I$(srctree)/drivers/misc/mediatek/base/power/$(CONFIG_MTK_PLATFORM) \
+	-I$(srctree)/drivers/gpu/mediatek/gpufreq/include \
 	-I$(srctree)/drivers/misc/mediatek/power_throttling       \
 
 ifeq ($(CONFIG_MACH_MT6877), y)
