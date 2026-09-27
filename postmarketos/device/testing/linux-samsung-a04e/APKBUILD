@@ -60,4 +60,6 @@ package() {
 		INSTALL_DTBS_PATH="$pkgdir"/boot/dtbs
 }
 
-sha512sums=""
+sha512sums="
+4e435b4fc1e00112de42bd464b737c069272ef6c2a83ce6bb8ccdcd692b448b2cc949de69fc345cf918eccf7d291eeb3c5dbca0db1a35f0c215f4d744a40980b  config-samsung-a04e.aarch64
+"
