@@ -1,7 +1,7 @@
 # libhybris userspace bridge for Android hardware on Samsung Galaxy A04e
 pkgname=libhybris-a04e
 pkgver=0.1
-pkgrel=2
+pkgrel=3
 pkgdesc="libhybris Android hardware compatibility bridge for A04e"
 maintainer="TEMMC <mapfumotinotendaenock@gmail.com>"
 arch="aarch64"
