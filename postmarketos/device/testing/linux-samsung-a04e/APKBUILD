@@ -1,0 +1,63 @@
+# Reference: <https://postmarketos.org/vendorkernel>
+# Kernel config based on: arch/arm64/configs/a04e_defconfig
+maintainer="TEMMC <github.com/TEMMC>"
+pkgname=linux-samsung-a04e
+pkgver=4.19.191
+pkgrel=0
+pkgdesc="Samsung Galaxy A04e downstream kernel"
+arch="aarch64"
+_carch="arm64"
+_flavor="samsung-a04e"
+url="https://github.com/TEMMC/android_kernel_a042f"
+license="GPL-2.0-only"
+options="!strip !check !tracedeps pmb:cross-native"
+makedepends="
+	bash
+	bc
+	bison
+	devicepkg-dev
+	findutils
+	flex
+	gmp-dev
+	linux-headers
+	mpc1-dev
+	mpfr-dev
+	openssl-dev
+	perl
+	xz
+"
+
+_repository="android_kernel_a042f"
+_commit="feae848c33f8e709afb27c6797e81d7b7a5318b8"
+_config="config-$_flavor.$arch"
+source="
+	$pkgname-$_commit.tar.gz::https://github.com/TEMMC/$_repository/archive/$_commit.tar.gz
+	$_config
+"
+builddir="$srcdir/$_repository-$_commit"
+_outdir="out"
+
+prepare() {
+	default_prepare
+	REPLACE_GCCH=0 . downstreamkernel_prepare
+}
+
+build() {
+	unset LDFLAGS
+	make O="$_outdir" ARCH="$_carch" a04e_defconfig
+	cat "$srcdir/$_config" >> "$_outdir/.config"
+	make O="$_outdir" ARCH="$_carch" olddefconfig
+	make O="$_outdir" ARCH="$_carch" CC="${CC:-gcc}" \
+		KCFLAGS="-fgnu89-inline" \
+		KBUILD_BUILD_VERSION="$((pkgrel + 1 ))-postmarketOS"
+}
+
+package() {
+	downstreamkernel_package "$builddir" "$pkgdir" "$_carch" \
+		"$_flavor" "$_outdir"
+	gzip -9 -c "$builddir/$_outdir/arch/$_carch/boot/Image" > "$pkgdir"/boot/vmlinuz
+	make dtbs_install O="$_outdir" ARCH="$_carch" \
+		INSTALL_DTBS_PATH="$pkgdir"/boot/dtbs
+}
+
+sha512sums=""
