@@ -36,8 +36,12 @@ jobs:
           git clone --depth=1 https://gitlab.postmarketOS.org/postMarketOS/pmaports.git pmaports
           mkdir -p pmaports/device/testing/device-samsung-a04e
           mkdir -p pmaports/device/testing/linux-samsung-a04e
+          mkdir -p pmaports/device/testing/android-headers-halium-a04e
+          mkdir -p pmaports/device/testing/libhybris-a04e
           cp postmarketos/device/testing/device-samsung-a04e/* pmaports/device/testing/device-samsung-a04e/
           cp postmarketos/device/testing/linux-samsung-a04e/* pmaports/device/testing/linux-samsung-a04e/
+          cp postmarketos/device/testing/android-headers-halium-a04e/* pmaports/device/testing/android-headers-halium-a04e/
+          cp postmarketos/device/testing/libhybris-a04e/* pmaports/device/testing/libhybris-a04e/
 
       - name: Verify required kernel configuration
         run: |
@@ -63,6 +67,8 @@ jobs:
           set -euxo pipefail
           export PATH="$HOME/.local/bin:$PATH"
           pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" checksum linux-samsung-a04e
+          pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" checksum android-headers-halium-a04e
+          pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" checksum libhybris-a04e
           grep -A5 '^sha512sums=' pmaports/device/testing/linux-samsung-a04e/APKBUILD
 
       - name: Build A04e kernel package with pmbootstrap
