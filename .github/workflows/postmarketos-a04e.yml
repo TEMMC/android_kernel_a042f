@@ -1,0 +1,49 @@
+name: postmarketOS A04e
+
+on:
+  push:
+    branches: [postmarketos-a04e]
+  pull_request:
+    branches: [postmarketos-a04e]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Alpine packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y alpine-chroot-install git abuild alpine-sdk
+
+      - name: Build kernel package
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo alpine-chroot-install \
+            -p 'alpine-sdk bash bc bison devicepkg-dev findutils flex gmp-dev linux-headers mpc1-dev mpfr-dev openssl-dev perl xz' \
+            -b /home/pmos
+          sudo cp -a postmarketos/device/testing/linux-samsung-a04e /home/pmos/linux-samsung-a04e
+          sudo chroot /home/pmos /bin/sh -eux <<'EOF'
+          adduser -D builder || true
+          addgroup builder abuild || true
+          chown -R builder:builder /linux-samsung-a04e
+          su builder -c 'cd /linux-samsung-a04e && abuild-keygen -a -i -n'
+          su builder -c 'cd /linux-samsung-a04e && abuild checksum && abuild -r'
+          EOF
+
+      - name: Collect package output
+        run: |
+          mkdir -p artifacts
+          sudo cp -a /home/pmos/home/builder/packages/*/* artifacts/ || true
+          find artifacts -type f -maxdepth 5 -print
+
+      - name: Upload kernel package
+        uses: actions/upload-artifact@v4
+        with:
+          name: postmarketos-a04e-kernel
+          path: artifacts/
+          if-no-files-found: error
