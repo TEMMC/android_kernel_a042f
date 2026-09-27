@@ -1,6 +1,9 @@
 name: Build postmarketOS A04e userspace
 
 on:
+  push:
+    branches:
+      - a04e
   workflow_dispatch:
 
 jobs:
