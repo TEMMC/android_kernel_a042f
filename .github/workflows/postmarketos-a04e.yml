@@ -26,6 +26,7 @@ jobs:
           git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
           install -Dm755 "$RUNNER_TEMP/pmbootstrap/pmbootstrap.py" "$RUNNER_TEMP/bin/pmbootstrap"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          export PATH="$RUNNER_TEMP/bin:$PATH"
           pmbootstrap --version
 
       - name: Prepare local pmaports
