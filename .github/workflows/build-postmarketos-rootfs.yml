@@ -39,7 +39,7 @@ jobs:
           pmbootstrap config user root
           pmbootstrap config ui console
           pmbootstrap config extra_packages none
-          pmbootstrap -y init --shallow-initial-clone
+          pmbootstrap -y -p "$RUNNER_TEMP/pmaports" init --shallow-initial-clone
           pmbootstrap config device qemu-aarch64
           pmbootstrap config kernel stable
           pmbootstrap config user root
