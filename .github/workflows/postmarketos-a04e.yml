@@ -48,7 +48,16 @@ jobs:
       - name: Initialize postmarketOS
         run: |
           set -euxo pipefail
-          printf '%s\n' '' '' v26.06 samsung a04e downstream none en_US.UTF-8 us none | pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" init
+          export PATH="$HOME/.local/bin:$PATH"
+          PMB_WORK="$RUNNER_TEMP/pmos-work"
+          PMB_APORTS="$PWD/pmaports"
+          mkdir -p "$PMB_WORK"
+          pmbootstrap --work "$PMB_WORK" --aports "$PMB_APORTS" config work "$PMB_WORK"
+          pmbootstrap --work "$PMB_WORK" --aports "$PMB_APORTS" config aports "$PMB_APORTS"
+          pmbootstrap --work "$PMB_WORK" --aports "$PMB_APORTS" config device samsung-a04e
+          pmbootstrap --work "$PMB_WORK" --aports "$PMB_APORTS" config kernel downstream
+          printf '\n\nv26.06\nsamsung\na04e\ndownstream\n' | pmbootstrap --work "$PMB_WORK" --aports "$PMB_APORTS" init --shallow-initial-clone
+          pmbootstrap --work "$PMB_WORK" --aports "$PMB_APORTS" status
 
       - name: Build A04e kernel package with pmbootstrap
         run: |
