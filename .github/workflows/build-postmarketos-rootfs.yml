@@ -34,8 +34,7 @@ jobs:
       - name: Initialize current postmarketOS ARM64 environment
         run: |
           cd "$RUNNER_TEMP/pmbootstrap"
-          printf '\nedge\nqemu\naarch64\nroot\nnone\n\n\n\n' | pmbootstrap init --shallow-initial-clone
-          pmbootstrap config device qemu-aarch64
+          printf '\nedge\nqemu\naarch64\n\nnone\nroot\n\n\n\n\n' | pmbootstrap init --shallow-initial-clone
           pmbootstrap config build_pkgs_on_install False
 
       - name: Build postmarketOS ARM64 rootfs only
@@ -49,7 +48,7 @@ jobs:
       - name: Package rootfs
         run: |
           set -eux
-          ROOTFS="$(find "$HOME/.local/var/pmbootstrap" -maxdepth 1 -type d -name 'chroot_rootfs_*' | head -n1)"
+          ROOTFS="$(find "$HOME/.local/var/pmbootstrap" -maxdepth 1 -type d -name 'chroot_rootfs_qemu-aarch64' | head -n1)"
           test -n "$ROOTFS"
           test -f "$ROOTFS/etc/os-release"
           mkdir -p out
