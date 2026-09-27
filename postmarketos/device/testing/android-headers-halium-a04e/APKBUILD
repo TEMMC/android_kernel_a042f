@@ -1,7 +1,7 @@
 # Halium Android userspace headers for libhybris on Samsung Galaxy A04e
 pkgname=android-headers-halium-a04e
 pkgver=0.1
-pkgrel=0
+pkgrel=1
 pkgdesc="Halium Android headers for A04e hardware compatibility"
 arch="aarch64"
 url="https://github.com/Halium/android-headers"
@@ -11,11 +11,12 @@ source="android-headers::https://github.com/Halium/android-headers/archive/refs/
 builddir="$srcdir/android-headers-master"
 
 build() {
-	make
+	true
 }
 
 package() {
-	make install DESTDIR="$pkgdir" PREFIX=/usr INCLUDEDIR=/usr/include/android PKGCONFIGDIR=/usr/lib/pkgconfig
+	mkdir -p "$pkgdir/usr/include/android"
+	find "$builddir" -type f \( -name "*.h" -o -name "*.hpp" \) -exec cp --parents {} "$pkgdir/usr/include/android/" \;
 }
 
 sha512sums="
