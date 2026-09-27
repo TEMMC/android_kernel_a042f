@@ -1,0 +1,20 @@
+# postmarketOS bring-up fragment for Samsung Galaxy A04e
+# Keep Samsung/MediaTek hardware options from a04e_defconfig and add the
+# facilities required by a normal Linux initramfs/userspace.
+CONFIG_DEVTMPFS=y
+CONFIG_DEVTMPFS_MOUNT=y
+CONFIG_PROC_FS=y
+CONFIG_SYSFS=y
+CONFIG_TMPFS=y
+CONFIG_TMPFS_POSIX_ACL=y
+CONFIG_TMPFS_XATTR=y
+CONFIG_UNIX=y
+CONFIG_FHANDLE=y
+CONFIG_INPUT_EVDEV=y
+CONFIG_VT=y
+CONFIG_VT_CONSOLE=y
+CONFIG_VT_HW_CONSOLE_BINDING=y
+CONFIG_FRAMEBUFFER_CONSOLE=y
+CONFIG_EXT4_FS=y
+CONFIG_BLK_DEV_LOOP=y
+CONFIG_OVERLAY_FS=y
