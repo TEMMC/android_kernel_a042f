@@ -23,10 +23,10 @@ jobs:
       - name: Install pmbootstrap
         run: |
           set -euxo pipefail
-          python3 -m venv "$RUNNER_TEMP/pmbootstrap-venv"
-          "$RUNNER_TEMP/pmbootstrap-venv/bin/pip" install --upgrade pip
-          "$RUNNER_TEMP/pmbootstrap-venv/bin/pip" install pmbootstrap
-          echo "$RUNNER_TEMP/pmbootstrap-venv/bin" >> "$GITHUB_PATH"
+          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
+          install -Dm755 "$RUNNER_TEMP/pmbootstrap/pmbootstrap.py" "$RUNNER_TEMP/bin/pmbootstrap"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          pmbootstrap --version
 
       - name: Prepare local pmaports
         run: |
