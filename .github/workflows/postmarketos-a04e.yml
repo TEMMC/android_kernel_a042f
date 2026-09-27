@@ -33,7 +33,7 @@ jobs:
       - name: Prepare local pmaports
         run: |
           set -euxo pipefail
-          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmaports.git pmaports
+          git clone --depth=1 https://gitlab.postmarketOS.org/postMarketOS/pmaports.git pmaports
           mkdir -p pmaports/device/testing/device-samsung-a04e
           mkdir -p pmaports/device/testing/linux-samsung-a04e
           cp postmarketos/device/testing/device-samsung-a04e/* pmaports/device/testing/device-samsung-a04e/
@@ -48,7 +48,7 @@ jobs:
       - name: Initialize postmarketOS
         run: |
           set -euxo pipefail
-          printf '%s\n' edge a04e samsung-a04e none en_US.UTF-8 us none | pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" init
+          printf '%s\n' v26.06 samsung a04e downstream none en_US.UTF-8 us none | pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" init
 
       - name: Build A04e kernel package with pmbootstrap
         run: |
