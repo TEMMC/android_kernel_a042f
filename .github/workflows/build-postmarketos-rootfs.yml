@@ -29,15 +29,10 @@ jobs:
           pmbootstrap --version
 
       - name: Initialize current postmarketOS ARM64 environment
-        env:
-          PMB_WORK: ${{ runner.temp }}/pmbootstrap-work
         run: |
-          mkdir -p "$PMB_WORK"
           cd "$RUNNER_TEMP/pmbootstrap"
           printf '\nedge\nqemu\naarch64\nroot\nnone\n\n\n\n' | pmbootstrap init --shallow-initial-clone
-          pmbootstrap config work "$PMB_WORK"
           pmbootstrap config device qemu-aarch64
-          pmbootstrap config kernel none
           pmbootstrap config build_pkgs_on_install False
 
       - name: Build postmarketOS ARM64 rootfs only
@@ -49,11 +44,9 @@ jobs:
             --add "openssh,networkmanager"
 
       - name: Package rootfs
-        env:
-          PMB_WORK: ${{ runner.temp }}/pmbootstrap-work
         run: |
           set -eux
-          ROOTFS="$(find "$PMB_WORK" -maxdepth 1 -type d -name 'chroot_rootfs_*' | head -n1)"
+          ROOTFS="$(find "$HOME/.local/var/pmbootstrap" -maxdepth 1 -type d -name 'chroot_rootfs_*' | head -n1)"
           test -n "$ROOTFS"
           test -f "$ROOTFS/etc/os-release"
           mkdir -p out
