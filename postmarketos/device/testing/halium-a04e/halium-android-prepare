@@ -1,0 +1,28 @@
+#!/bin/sh
+set -eu
+
+ANDROID_ROOT=/android
+SYSTEM="$ANDROID_ROOT/system"
+VENDOR="$ANDROID_ROOT/vendor"
+
+mkdir -p "$SYSTEM" "$VENDOR"
+
+mount_android_partition() {
+	dev="$1"
+	target="$2"
+	[ -e "$dev" ] || return 0
+	mountpoint -q "$target" && return 0
+	mount -t ext4 -o ro "$dev" "$target"
+}
+
+mount_android_partition /dev/block/by-name/system "$SYSTEM"
+mount_android_partition /dev/block/by-name/vendor "$VENDOR"
+
+if [ -d "$SYSTEM/lib64" ]; then
+	export LD_LIBRARY_PATH="/usr/lib/hybris:/usr/lib/hybris/egl:$SYSTEM/lib64:$VENDOR/lib64"
+fi
+
+echo "Halium A04e Android compatibility environment prepared."
+echo "Android system: $SYSTEM"
+echo "Android vendor:  $VENDOR"
+echo "libhybris:       /usr/lib/hybris"
