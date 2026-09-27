@@ -1,0 +1,70 @@
+name: Build postmarketOS A04e userspace
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-rootfs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout A04e source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git python3 python3-pip python3-venv openssl \
+            procps psmisc tar xz-utils zstd kpartx util-linux \
+            e2fsprogs qemu-user-static binfmt-support
+
+      - name: Install current pmbootstrap
+        run: |
+          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
+          mkdir -p "$HOME/.local/bin"
+          ln -sf "$RUNNER_TEMP/pmbootstrap/pmbootstrap.py" "$HOME/.local/bin/pmbootstrap"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          pmbootstrap --version
+
+      - name: Initialize current postmarketOS ARM64 environment
+        env:
+          PMB_WORK: ${{ runner.temp }}/pmbootstrap-work
+        run: |
+          mkdir -p "$PMB_WORK"
+          cd "$RUNNER_TEMP/pmbootstrap"
+          printf '\nedge\nqemu\naarch64\nroot\nnone\n\n\n\n' | pmbootstrap init --shallow-initial-clone
+          pmbootstrap config work "$PMB_WORK"
+          pmbootstrap config device qemu-aarch64
+          pmbootstrap config kernel none
+          pmbootstrap config build_pkgs_on_install False
+
+      - name: Build postmarketOS ARM64 rootfs only
+        run: |
+          pmbootstrap install \
+            --no-image \
+            --no-fde \
+            --filesystem ext4 \
+            --add "openssh,networkmanager"
+
+      - name: Package rootfs
+        env:
+          PMB_WORK: ${{ runner.temp }}/pmbootstrap-work
+        run: |
+          set -eux
+          ROOTFS="$(find "$PMB_WORK" -maxdepth 1 -type d -name 'chroot_rootfs_*' | head -n1)"
+          test -n "$ROOTFS"
+          test -f "$ROOTFS/etc/os-release"
+          mkdir -p out
+          tar -C "$ROOTFS" -cJf out/postmarketos-a04e-arm64-rootfs.tar.xz .
+          du -h out/postmarketos-a04e-arm64-rootfs.tar.xz
+          tar -tJf out/postmarketos-a04e-arm64-rootfs.tar.xz | head -40
+
+      - name: Upload postmarketOS rootfs
+        uses: actions/upload-artifact@v4
+        with:
+          name: postmarketOS-A04e-ARM64-rootfs
+          path: out/postmarketos-a04e-arm64-rootfs.tar.xz
+          if-no-files-found: error
+          retention-days: 30
