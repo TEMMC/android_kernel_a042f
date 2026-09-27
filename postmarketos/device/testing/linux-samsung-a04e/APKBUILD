@@ -39,14 +39,15 @@ _outdir="out"
 
 prepare() {
 	default_prepare
+	sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/Kconfig
 	REPLACE_GCCH=0 . downstreamkernel_prepare
 }
 
 build() {
 	unset LDFLAGS
-	make O="$_outdir" ARCH="$_carch" a04e_defconfig
+	make O="$_outdir" ARCH="$_carch" CC="${CC:-gcc}" a04e_defconfig
 	cat "$srcdir/$_config" >> "$_outdir/.config"
-	make O="$_outdir" ARCH="$_carch" olddefconfig
+	make O="$_outdir" ARCH="$_carch" CC="${CC:-gcc}" olddefconfig
 	make O="$_outdir" ARCH="$_carch" CC="${CC:-gcc}" \
 		KCFLAGS="-fgnu89-inline" \
 		KBUILD_BUILD_VERSION="$((pkgrel + 1 ))-postmarketOS"
