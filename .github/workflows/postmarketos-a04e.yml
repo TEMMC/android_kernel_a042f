@@ -52,7 +52,10 @@ jobs:
           PMB_WORK="$RUNNER_TEMP/pmos-work"
           PMB_APORTS="$PWD/pmaports"
           mkdir -p "$PMB_WORK"
-          printf '%s\n' '' '' v26.06 samsung a04e downstream | pmbootstrap --work "$PMB_WORK" --aports "$PMB_APORTS" init --shallow-initial-clone
+          {
+            printf '%s\n' '' '' v26.06 samsung a04e downstream pulseaudio
+            printf '%s\n' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' ''
+          } | pmbootstrap --work "$PMB_WORK" --aports "$PMB_APORTS" init --shallow-initial-clone
           pmbootstrap --work "$PMB_WORK" --aports "$PMB_APORTS" status
 
       - name: Build A04e kernel package with pmbootstrap
