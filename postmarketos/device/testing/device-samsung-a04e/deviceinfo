@@ -1,0 +1,17 @@
+# https://postmarketos.org/deviceinfo
+# Samsung Galaxy A04e (SM-A042F)
+deviceinfo_format_version="0"
+deviceinfo_name="Samsung Galaxy A04e"
+deviceinfo_manufacturer="Samsung"
+deviceinfo_codename="a04e"
+deviceinfo_year="2023"
+deviceinfo_arch="aarch64"
+deviceinfo_chassis="handset"
+deviceinfo_external_storage="true"
+deviceinfo_drm="false"
+deviceinfo_flash_method="none"
+deviceinfo_flash_kernel_on_update="false"
+deviceinfo_screen_width="720"
+deviceinfo_screen_height="1600"
+deviceinfo_dev_internal_storage="/dev/mmcblk0"
+deviceinfo_super_partitions="super"
