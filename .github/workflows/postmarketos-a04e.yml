@@ -48,7 +48,7 @@ jobs:
       - name: Initialize postmarketOS
         run: |
           set -euxo pipefail
-          printf '%s\n' v26.06 samsung a04e downstream none en_US.UTF-8 us none | pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" init
+          printf '%s\n' '' '' v26.06 samsung a04e downstream none en_US.UTF-8 us none | pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" init
 
       - name: Build A04e kernel package with pmbootstrap
         run: |
