@@ -1,0 +1,26 @@
+# Reference: <https://postmarketos.org/devicepkg>
+# Samsung Galaxy A04e (SM-A042F), MT6765
+pkgname=device-samsung-a04e
+pkgdesc="Samsung Galaxy A04e"
+pkgver=0.1
+pkgrel=0
+url="https://postmarketos.org"
+license="MIT"
+arch="aarch64"
+options="!check !archcheck"
+depends="postmarketos-base linux-samsung-a04e"
+makedepends="devicepkg-dev"
+source="deviceinfo kernel-cmdline.conf"
+
+build() {
+	devicepkg_build $startdir $pkgname
+}
+
+package() {
+	devicepkg_package $startdir $pkgname
+}
+
+sha512sums="
+14e2c957c65b799cb743082a0aa12619518f26739a2777c11bfa5f7d074c0ea8eea1c6ac936bf2f8befcc33132675c5b4f344b59702ad7f8bc1ebb380ed5b720  deviceinfo
+6d39c82ff83e832d09e3fab863d0fd66b3f254ed794106f0039a678fb1691f09113916bc541ecede31ab72b3d39d1047bfba9d8e8f3271392b127ec569b38d16  kernel-cmdline.conf
+"
