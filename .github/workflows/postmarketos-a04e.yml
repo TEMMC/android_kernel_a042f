@@ -25,8 +25,8 @@ jobs:
         run: |
           set -euxo pipefail
           sudo alpine-chroot-install \
-            -p 'alpine-sdk bash bc bison devicepkg-dev findutils flex gmp-dev linux-headers mpc1-dev mpfr-dev openssl-dev perl xz' \
-            -b /home/pmos
+            -d /home/pmos \
+            -p 'alpine-sdk bash bc bison devicepkg-dev findutils flex gmp-dev linux-headers mpc1-dev mpfr-dev openssl-dev perl xz'
           sudo cp -a postmarketos/device/testing/linux-samsung-a04e /home/pmos/linux-samsung-a04e
           sudo chroot /home/pmos /bin/sh -eux <<'EOF'
           adduser -D builder || true
