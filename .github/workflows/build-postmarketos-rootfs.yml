@@ -34,8 +34,12 @@ jobs:
       - name: Initialize current postmarketOS ARM64 environment
         run: |
           cd "$RUNNER_TEMP/pmbootstrap"
-          mkdir -p "$RUNNER_TEMP/pmaports"
-          printf '\nedge\nqemu\naarch64\nnone\nroot\nconsole\nn\n\n\n\n\n\n\n\n' | pmbootstrap --aports "$RUNNER_TEMP/pmaports" init --shallow-initial-clone
+          pmbootstrap -y init --shallow-initial-clone
+          pmbootstrap config device qemu-aarch64
+          pmbootstrap config kernel stable
+          pmbootstrap config user root
+          pmbootstrap config ui console
+          pmbootstrap config extra_packages none
           pmbootstrap config build_pkgs_on_install False
 
       - name: Build postmarketOS ARM64 rootfs only
