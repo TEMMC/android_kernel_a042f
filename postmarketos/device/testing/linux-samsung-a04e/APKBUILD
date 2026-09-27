@@ -1,6 +1,6 @@
 # Reference: <https://postmarketos.org/vendorkernel>
 # Kernel config based on: arch/arm64/configs/a04e_defconfig
-maintainer="TEMMC <github.com/TEMMC>"
+maintainer="TEMMC <mapfumotinotendaenock@gmail.com>"
 pkgname=linux-samsung-a04e
 pkgver=4.19.191
 pkgrel=0
