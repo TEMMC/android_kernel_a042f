@@ -58,6 +58,13 @@ jobs:
           } | pmbootstrap --work "$PMB_WORK" --aports "$PMB_APORTS" init --shallow-initial-clone
           pmbootstrap --work "$PMB_WORK" --aports "$PMB_APORTS" status
 
+      - name: Update kernel source checksum
+        run: |
+          set -euxo pipefail
+          export PATH="$HOME/.local/bin:$PATH"
+          pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" checksum linux-samsung-a04e
+          grep -A5 '^sha512sums=' pmaports/device/testing/linux-samsung-a04e/APKBUILD
+
       - name: Build A04e kernel package with pmbootstrap
         run: |
           set -euxo pipefail
