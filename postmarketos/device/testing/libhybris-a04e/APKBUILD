@@ -1,8 +1,9 @@
 # libhybris userspace bridge for Android hardware on Samsung Galaxy A04e
 pkgname=libhybris-a04e
 pkgver=0.1
-pkgrel=1
+pkgrel=2
 pkgdesc="libhybris Android hardware compatibility bridge for A04e"
+maintainer="TEMMC <mapfumotinotendaenock@gmail.com>"
 arch="aarch64"
 url="https://github.com/libhybris/libhybris"
 license="LGPL-2.1-or-later"
@@ -21,11 +22,10 @@ makedepends="
 "
 _source_commit="7079712a42ea2754adf747e70c6cc75764c8596e"
 source="libhybris-$_source_commit.tar.gz::https://github.com/libhybris/libhybris/archive/$_source_commit.tar.gz"
-builddir="$srcdir/libhybris-$_source_commit"
+builddir="$srcdir/libhybris-$_source_commit/hybris"
 
 build() {
-	./autogen.sh
-	./configure --build=aarch64-linux-musl --host=aarch64-linux-musl --enable-arch=arm64 --with-android-headers=/usr/include/android --prefix=/usr --enable-experimental --enable-wayland
+	./autogen.sh --enable-wayland --enable-arch=arm64 --with-android-headers=/usr/include/android --enable-experimental --prefix=/usr
 	make
 }
 
