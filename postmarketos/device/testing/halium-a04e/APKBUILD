@@ -1,0 +1,25 @@
+# Halium userspace bridge integration for Samsung Galaxy A04e
+pkgname=halium-a04e
+pkgver=0.1
+pkgrel=0
+pkgdesc="Halium compatibility runtime for Samsung Galaxy A04e"
+arch="aarch64"
+url="https://github.com/Halium"
+license="Apache-2.0"
+options="!check !archcheck"
+depends="libhybris-a04e libgbinder lxc"
+source="halium-android-prepare halium-a04e.conf"
+
+build() {
+	:
+}
+
+package() {
+	install -Dm755 "$srcdir/halium-android-prepare" "$pkgdir/usr/sbin/halium-android-prepare"
+	install -Dm644 "$srcdir/halium-a04e.conf" "$pkgdir/etc/halium/a04e.conf"
+}
+
+sha512sums="
+SKIP  halium-android-prepare
+SKIP  halium-a04e.conf
+"
