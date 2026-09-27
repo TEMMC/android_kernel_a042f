@@ -14,10 +14,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Alpine packaging tools
+      - name: Install Alpine chroot bootstrapper
         run: |
+          set -euxo pipefail
           sudo apt-get update
-          sudo apt-get install -y alpine-chroot-install git abuild alpine-sdk
+          sudo apt-get install -y alpine-chroot-install git
 
       - name: Build kernel package
         shell: bash
@@ -34,6 +35,11 @@ jobs:
           su builder -c 'cd /linux-samsung-a04e && abuild-keygen -a -i -n'
           su builder -c 'cd /linux-samsung-a04e && abuild checksum && abuild -r'
           EOF
+
+      - name: Verify required kernel configuration
+        run: |
+          grep -E '^CONFIG_(DEVTMPFS|DEVTMPFS_MOUNT)=y$' \
+            postmarketos/device/testing/linux-samsung-a04e/config-samsung-a04e.aarch64
 
       - name: Collect package output
         run: |
