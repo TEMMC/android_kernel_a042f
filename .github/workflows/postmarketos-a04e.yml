@@ -23,7 +23,7 @@ jobs:
       - name: Install pmbootstrap
         run: |
           set -euxo pipefail
-          git clone --depth=1 https://gitlab.postmarketos.org/postMarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
+          git clone --depth=1 https://gitlab.postmarketOS.org/postMarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
           cd "$RUNNER_TEMP/pmbootstrap"
           python3 -m pip install --user --break-system-packages .
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -48,15 +48,7 @@ jobs:
       - name: Initialize postmarketOS
         run: |
           set -euxo pipefail
-          pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" init <<'EOF'
-          edge
-          a04e
-          samsung-a04e
-          none
-          en_US.UTF-8
-          us
-          none
-          EOF
+          printf '%s\n' edge a04e samsung-a04e none en_US.UTF-8 us none | pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" init
 
       - name: Build A04e kernel package with pmbootstrap
         run: |
