@@ -40,7 +40,7 @@ _outdir="out"
 prepare() {
 	default_prepare
 	sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/Kconfig
-	REPLACE_GCCH=0 . downstreamkernel_prepare
+	yes "" | REPLACE_GCCH=0 . downstreamkernel_prepare
 }
 
 build() {
