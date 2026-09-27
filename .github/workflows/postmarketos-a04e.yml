@@ -62,7 +62,7 @@ jobs:
         run: |
           set -euxo pipefail
           export PATH="$HOME/.local/bin:$PATH"
-          pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" build linux-samsung-a04e --arch aarch64
+          pmbootstrap --details-to-stdout --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" build linux-samsung-a04e --arch aarch64
 
       - name: Build postmarketOS initramfs/rootfs
         run: |
