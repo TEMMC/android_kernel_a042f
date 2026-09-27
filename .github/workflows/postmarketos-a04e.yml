@@ -84,7 +84,7 @@ jobs:
         run: |
           set -euxo pipefail
           export PATH="$HOME/.local/bin:$PATH"
-          pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" install --no-fde --no-sshd --no-image
+          pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" install --no-fde --no-sshd --no-image --add android-headers-halium-a04e,libhybris-a04e,halium-a04e
           pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" export
 
       - name: Collect artifacts
