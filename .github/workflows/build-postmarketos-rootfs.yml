@@ -31,21 +31,34 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           pmbootstrap --version
 
-      - name: Initialize current postmarketOS ARM64 environment
+      - name: Prepare non-interactive postmarketOS ARM64 environment
         run: |
-          cd "$RUNNER_TEMP/pmbootstrap"
-          pmbootstrap -y -p "$RUNNER_TEMP/pmaports" init --shallow-initial-clone
-          pmbootstrap config device qemu-aarch64
-          pmbootstrap config kernel stable
-          pmbootstrap config user root
-          pmbootstrap config ui console
-          pmbootstrap config extra_packages none
-          pmbootstrap config build_pkgs_on_install False
-          pmbootstrap status
+          set -eux
+          APORTS="$RUNNER_TEMP/pmaports"
+          WORK="$RUNNER_TEMP/pmbootstrap-work"
+          CONFIG="$RUNNER_TEMP/pmbootstrap_v3.cfg"
+          git clone --depth=1 --branch edge https://gitlab.postmarketOS.org/postmarketOS/pmaports.git "$APORTS"
+          mkdir -p "$WORK"
+          cat > "$CONFIG" <<EOF
+[pmbootstrap]
+aports = $APORTS
+work = $WORK
+device = qemu-aarch64
+kernel = stable
+user = root
+ui = console
+extra_packages = none
+build_pkgs_on_install = false
+is_default_channel = true
+EOF
+          pmbootstrap --config "$CONFIG" config device
+          pmbootstrap --config "$CONFIG" config aports
+          pmbootstrap --config "$CONFIG" status
 
       - name: Build postmarketOS ARM64 rootfs only
         run: |
-          pmbootstrap install \
+          set -eux
+          pmbootstrap --config "$RUNNER_TEMP/pmbootstrap_v3.cfg" install \
             --no-image \
             --no-fde \
             --filesystem ext4 \
@@ -54,7 +67,7 @@ jobs:
       - name: Package rootfs
         run: |
           set -eux
-          ROOTFS="$(find "$HOME/.local/var/pmbootstrap" -maxdepth 1 -type d -name 'chroot_rootfs_qemu-aarch64' | head -n1)"
+          ROOTFS="$(find "$RUNNER_TEMP/pmbootstrap-work" -maxdepth 1 -type d -name 'chroot_rootfs_qemu-aarch64' | head -n1)"
           test -n "$ROOTFS"
           test -f "$ROOTFS/etc/os-release"
           mkdir -p out
