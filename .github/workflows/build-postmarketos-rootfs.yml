@@ -34,30 +34,25 @@ jobs:
       - name: Initialize postmarketOS ARM64 environment
         run: |
           set -eux
-          APORTS="$RUNNER_TEMP/pmaports"
           WORK="$RUNNER_TEMP/pmbootstrap-work"
-          git clone --depth=1 --branch edge https://gitlab.postmarketOS.org/postmarketOS/pmaports.git "$APORTS"
           mkdir -p "$WORK"
-          pmbootstrap --aports "$APORTS" --work "$WORK" -y init --shallow-initial-clone
-          pmbootstrap --aports "$APORTS" --work "$WORK" config device qemu-aarch64
-          pmbootstrap --aports "$APORTS" --work "$WORK" config kernel stable
-          pmbootstrap --aports "$APORTS" --work "$WORK" config user root
-          pmbootstrap --aports "$APORTS" --work "$WORK" config ui console
-          pmbootstrap --aports "$APORTS" --work "$WORK" config extra_packages none
-          pmbootstrap --aports "$APORTS" --work "$WORK" config build_pkgs_on_install False
-          pmbootstrap --aports "$APORTS" --work "$WORK" status
-
+          pmbootstrap --work "$WORK" -y init --shallow-initial-clone
+          pmbootstrap --work "$WORK" config device qemu-aarch64
+          pmbootstrap --work "$WORK" config kernel stable
+          pmbootstrap --work "$WORK" config user root
+          pmbootstrap --work "$WORK" config ui console
+          pmbootstrap --work "$WORK" config extra_packages none
+          pmbootstrap --work "$WORK" config build_pkgs_on_install False
+          pmbootstrap --work "$WORK" status
       - name: Build postmarketOS ARM64 rootfs only
         run: |
           set -eux
-          APORTS="$RUNNER_TEMP/pmaports"
           WORK="$RUNNER_TEMP/pmbootstrap-work"
-          pmbootstrap --aports "$APORTS" --work "$WORK" install \
+          pmbootstrap --work "$WORK" install \
             --no-image \
             --no-fde \
             --filesystem ext4 \
             --add "openssh,networkmanager"
-
       - name: Package rootfs
         run: |
           set -eux
