@@ -31,34 +31,28 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           pmbootstrap --version
 
-      - name: Prepare non-interactive postmarketOS ARM64 environment
+      - name: Initialize postmarketOS ARM64 environment
         run: |
           set -eux
           APORTS="$RUNNER_TEMP/pmaports"
           WORK="$RUNNER_TEMP/pmbootstrap-work"
-          CONFIG="$RUNNER_TEMP/pmbootstrap_v3.cfg"
           git clone --depth=1 --branch edge https://gitlab.postmarketOS.org/postmarketOS/pmaports.git "$APORTS"
           mkdir -p "$WORK"
-          cat > "$CONFIG" <<EOF
-[pmbootstrap]
-aports = $APORTS
-work = $WORK
-device = qemu-aarch64
-kernel = stable
-user = root
-ui = console
-extra_packages = none
-build_pkgs_on_install = false
-is_default_channel = true
-EOF
-          pmbootstrap --config "$CONFIG" config device
-          pmbootstrap --config "$CONFIG" config aports
-          pmbootstrap --config "$CONFIG" status
+          pmbootstrap --aports "$APORTS" --work "$WORK" -y init --shallow-initial-clone
+          pmbootstrap --aports "$APORTS" --work "$WORK" config device qemu-aarch64
+          pmbootstrap --aports "$APORTS" --work "$WORK" config kernel stable
+          pmbootstrap --aports "$APORTS" --work "$WORK" config user root
+          pmbootstrap --aports "$APORTS" --work "$WORK" config ui console
+          pmbootstrap --aports "$APORTS" --work "$WORK" config extra_packages none
+          pmbootstrap --aports "$APORTS" --work "$WORK" config build_pkgs_on_install False
+          pmbootstrap --aports "$APORTS" --work "$WORK" status
 
       - name: Build postmarketOS ARM64 rootfs only
         run: |
           set -eux
-          pmbootstrap --config "$RUNNER_TEMP/pmbootstrap_v3.cfg" install \
+          APORTS="$RUNNER_TEMP/pmaports"
+          WORK="$RUNNER_TEMP/pmbootstrap-work"
+          pmbootstrap --aports "$APORTS" --work "$WORK" install \
             --no-image \
             --no-fde \
             --filesystem ext4 \
