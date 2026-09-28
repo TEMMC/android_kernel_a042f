@@ -1,14 +1,14 @@
 # Halium Android userspace headers for libhybris on Samsung Galaxy A04e
 pkgname=android-headers-halium-a04e
 pkgver=0.1
-pkgrel=4
+pkgrel=5
 pkgdesc="Halium Android headers for A04e hardware compatibility"
 maintainer="TEMMC <mapfumotinotendaenock9@gmail.com>"
 arch="aarch64"
 url="https://github.com/Halium/android-headers"
 license="Apache-2.0"
 options="!check !archcheck"
-source="https://github.com/Halium/android-headers/archive/refs/heads/master.tar.gz"
+source="android-headers-master.tar.gz::https://github.com/Halium/android-headers/archive/refs/heads/master.tar.gz"
 builddir="$srcdir/android-headers-master"
 
 build() {
@@ -24,5 +24,5 @@ package() {
 }
 
 sha512sums="
-SKIP  master.tar.gz
+SKIP  android-headers-master.tar.gz
 "
