@@ -35,15 +35,34 @@ jobs:
         run: |
           set -eux
           WORK="$RUNNER_TEMP/pmbootstrap-work"
-          mkdir -p "$WORK"
-          pmbootstrap --work "$WORK" -y init --shallow-initial-clone
-          pmbootstrap --work "$WORK" config device qemu-aarch64
-          pmbootstrap --work "$WORK" config kernel stable
-          pmbootstrap --work "$WORK" config user root
-          pmbootstrap --work "$WORK" config ui console
-          pmbootstrap --work "$WORK" config extra_packages none
-          pmbootstrap --work "$WORK" config build_pkgs_on_install False
-          pmbootstrap --work "$WORK" status
+          APORTS="$WORK/cache_git/pmaports"
+          CONFIG="$RUNNER_TEMP/pmbootstrap-aarch64.cfg"
+          mkdir -p "$WORK/cache_git"
+
+          cat > "$CONFIG" <<EOF
+          [pmbootstrap]
+          aports = $APORTS
+          work = $WORK
+          device = qemu-aarch64
+          kernel = edge
+          user = root
+          ui = console
+          extra_packages = none
+          build_pkgs_on_install = False
+          is_default_channel = False
+          locale = en_US.UTF-8
+          mirror_alpine = http://dl-cdn.alpinelinux.org/alpine/
+          mirrors_postmarketos = http://mirror.postmarketos.org/postmarketos/
+          nonfree_firmware = False
+          nonfree_userland = False
+          ssh_keys = False
+          [providers]
+          [pmaports]
+          supported_arches = aarch64
+          EOF
+
+          pmbootstrap -c "$CONFIG" -p "$APORTS" -y init --shallow-initial-clone
+          pmbootstrap -c "$CONFIG" -p "$APORTS" status
       - name: Build postmarketOS ARM64 rootfs only
         run: |
           set -eux
