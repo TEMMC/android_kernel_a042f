@@ -61,7 +61,8 @@ jobs:
           supported_arches = aarch64
           EOF
 
-          pmbootstrap -c "$CONFIG" -p "$APORTS" -y init --shallow-initial-clone
+          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmaports.git "$APORTS"
+          pmbootstrap -c "$CONFIG" -p "$APORTS" -y init
           pmbootstrap -c "$CONFIG" -p "$APORTS" status
       - name: Build postmarketOS ARM64 rootfs only
         run: |
