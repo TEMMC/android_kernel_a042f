@@ -25,7 +25,7 @@ jobs:
 
       - name: Install current pmbootstrap
         run: |
-          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
+          git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
           mkdir -p "$HOME/.local/bin"
           ln -sf "$RUNNER_TEMP/pmbootstrap/pmbootstrap.py" "$HOME/.local/bin/pmbootstrap"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -52,7 +52,7 @@ jobs:
           is_default_channel = False
           locale = en_US.UTF-8
           mirror_alpine = http://dl-cdn.alpinelinux.org/alpine/
-          mirrors_postmarketos = http://mirror.postmarketos.org/postmarketos/
+          mirrors_postmarketOS = http://mirror.postmarketos.org/postmarketos/
           nonfree_firmware = False
           nonfree_userland = False
           ssh_keys = False
@@ -61,18 +61,21 @@ jobs:
           supported_arches = aarch64
           EOF
 
-          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmaports.git "$APORTS"
-          yes '' | pmbootstrap -c "$CONFIG" -p "$APORTS" -y init
-          pmbootstrap -c "$CONFIG" -p "$APORTS" status
+          git clone --depth=1 https://gitlab.postmarketOS.org/postMarketOS/pmaports.git "$APORTS"
+          pmbootstrap -c "$CONFIG" -p "$APORTS" -y status
+
       - name: Build postmarketOS ARM64 rootfs only
         run: |
           set -eux
           WORK="$RUNNER_TEMP/pmbootstrap-work"
-          pmbootstrap --work "$WORK" install \
+          APORTS="$WORK/cache_git/pmaports"
+          CONFIG="$RUNNER_TEMP/pmbootstrap-aarch64.cfg"
+          pmbootstrap -c "$CONFIG" -p "$APORTS" install \
             --no-image \
             --no-fde \
             --filesystem ext4 \
             --add "openssh,networkmanager"
+
       - name: Package rootfs
         run: |
           set -eux
