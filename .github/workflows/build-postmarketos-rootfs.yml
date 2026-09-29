@@ -62,7 +62,7 @@ jobs:
           supported_arches = aarch64
           EOF
 
-          git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmaports.git "$APORTS"
+          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmaports.git "$APORTS"
           pmbootstrap -c "$CONFIG" -p "$APORTS" status
 
       - name: Build postmarketOS ARM64 rootfs only
@@ -84,7 +84,12 @@ jobs:
           test -n "$ROOTFS"
           test -f "$ROOTFS/etc/os-release"
           mkdir -p out
-          tar -C "$ROOTFS" -cJf out/postmarketos-a04e-arm64-rootfs.tar.xz .
+          tar -C "$ROOTFS" \
+            --exclude='./proc/*' \
+            --exclude='./sys/*' \
+            --exclude='./dev/*' \
+            --exclude='./run/*' \
+            -cJf out/postmarketos-a04e-arm64-rootfs.tar.xz .
           du -h out/postmarketos-a04e-arm64-rootfs.tar.xz
           tar -tJf out/postmarketos-a04e-arm64-rootfs.tar.xz | head -40
 
