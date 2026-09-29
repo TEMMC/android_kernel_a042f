@@ -25,7 +25,7 @@ jobs:
 
       - name: Install current pmbootstrap
         run: |
-          git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
+          git clone --depth=1 https://gitlab.postmarketOS.org/postMarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
           mkdir -p "$HOME/.local/bin"
           ln -sf "$RUNNER_TEMP/pmbootstrap/pmbootstrap.py" "$HOME/.local/bin/pmbootstrap"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -61,7 +61,7 @@ jobs:
           supported_arches = aarch64
           EOF
 
-          git clone --depth=1 https://gitlab.postmarketOS.org/postMarketOS/pmaports.git "$APORTS"
+          git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmaports.git "$APORTS"
           pmbootstrap -c "$CONFIG" -p "$APORTS" -y status
 
       - name: Build postmarketOS ARM64 rootfs only
