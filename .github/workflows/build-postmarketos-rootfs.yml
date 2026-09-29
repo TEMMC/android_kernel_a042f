@@ -38,7 +38,7 @@ jobs:
           APORTS="$WORK/cache_git/pmaports"
           CONFIG="$RUNNER_TEMP/pmbootstrap-aarch64.cfg"
           mkdir -p "$WORK/cache_git"
-          printf '8\\n' > "$WORK/version"
+          printf '%s\n' '8' > "$WORK/version"
 
           cat > "$CONFIG" <<EOF
           [pmbootstrap]
