@@ -95,7 +95,7 @@ jobs:
             --exclude='/run/***' \
             "$ROOTFS"/ "$STAGE"/
 
-          mkdir -p "$STAGE/proc" "$STAGE/sys" "$STAGE/dev" "$STAGE/run"
+          sudo mkdir -p "$STAGE/proc" "$STAGE/sys" "$STAGE/dev" "$STAGE/run"
 
           mkdir -p out
           sudo tar -C "$STAGE" -cJf out/postmarketos-a04e-arm64-rootfs.tar.xz .
