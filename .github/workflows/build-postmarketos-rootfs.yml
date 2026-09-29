@@ -73,8 +73,8 @@ jobs:
           CONFIG="$RUNNER_TEMP/pmbootstrap-aarch64.cfg"
           pmbootstrap -c "$CONFIG" -p "$APORTS" install \
             --no-image \
-            --no-fde \
             --filesystem ext4 \
+            --password "pmos-test" \
             --add "openssh,networkmanager"
 
       - name: Package rootfs
