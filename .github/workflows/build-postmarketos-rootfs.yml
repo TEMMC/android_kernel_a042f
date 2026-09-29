@@ -21,11 +21,11 @@ jobs:
           sudo apt-get install -y \
             git python3 python3-pip python3-venv openssl \
             procps psmisc tar xz-utils zstd kpartx util-linux \
-            e2fsprogs qemu-user-static binfmt-support
+            e2fsprogs qemu-user-static binfmt-support rsync
 
       - name: Install current pmbootstrap
         run: |
-          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
+          git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
           mkdir -p "$HOME/.local/bin"
           ln -sf "$RUNNER_TEMP/pmbootstrap/pmbootstrap.py" "$HOME/.local/bin/pmbootstrap"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -62,7 +62,7 @@ jobs:
           supported_arches = aarch64
           EOF
 
-          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmaports.git "$APORTS"
+          git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmaports.git "$APORTS"
           pmbootstrap -c "$CONFIG" -p "$APORTS" status
 
       - name: Build postmarketOS ARM64 rootfs only
@@ -83,13 +83,23 @@ jobs:
           ROOTFS="$(find "$RUNNER_TEMP/pmbootstrap-work" -maxdepth 1 -type d -name 'chroot_rootfs_qemu-aarch64' | head -n1)"
           test -n "$ROOTFS"
           test -f "$ROOTFS/etc/os-release"
+
+          STAGE="$RUNNER_TEMP/rootfs-stage"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+
+          rsync -aHAX --numeric-ids \
+            --exclude='/proc/***' \
+            --exclude='/sys/***' \
+            --exclude='/dev/***' \
+            --exclude='/run/***' \
+            "$ROOTFS"/ "$STAGE"/
+
+          mkdir -p "$STAGE/proc" "$STAGE/sys" "$STAGE/dev" "$STAGE/run"
+
           mkdir -p out
-          tar -C "$ROOTFS" \
-            --exclude='./proc/*' \
-            --exclude='./sys/*' \
-            --exclude='./dev/*' \
-            --exclude='./run/*' \
-            -cJf out/postmarketos-a04e-arm64-rootfs.tar.xz .
+          tar -C "$STAGE" --no-recursion -cf out/rootfs-dirs.tar proc sys dev run
+          tar -C "$STAGE" --exclude='./proc' --exclude='./sys' --exclude='./dev' --exclude='./run' -cJf out/postmarketos-a04e-arm64-rootfs.tar.xz .
           du -h out/postmarketos-a04e-arm64-rootfs.tar.xz
           tar -tJf out/postmarketos-a04e-arm64-rootfs.tar.xz | head -40
 
