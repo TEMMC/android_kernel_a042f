@@ -25,13 +25,13 @@ jobs:
 
       - name: Install current pmbootstrap
         run: |
-          git clone --depth=1 https://gitlab.postmarketOS.org/postMarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
+          git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
           mkdir -p "$HOME/.local/bin"
           ln -sf "$RUNNER_TEMP/pmbootstrap/pmbootstrap.py" "$HOME/.local/bin/pmbootstrap"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           pmbootstrap --version
 
-      - name: Initialize postmarketOS ARM64 environment
+      - name: Configure postmarketOS ARM64 environment
         run: |
           set -eux
           WORK="$RUNNER_TEMP/pmbootstrap-work"
@@ -40,29 +40,29 @@ jobs:
           mkdir -p "$WORK/cache_git"
 
           cat > "$CONFIG" <<EOF
-          [pmbootstrap]
-          aports = $APORTS
-          work = $WORK
-          device = qemu-aarch64
-          kernel = edge
-          user = root
-          ui = console
-          extra_packages = none
-          build_pkgs_on_install = False
-          is_default_channel = False
-          locale = en_US.UTF-8
-          mirror_alpine = http://dl-cdn.alpinelinux.org/alpine/
-          mirrors_postmarketOS = http://mirror.postmarketos.org/postmarketos/
-          nonfree_firmware = False
-          nonfree_userland = False
-          ssh_keys = False
-          [providers]
-          [pmaports]
-          supported_arches = aarch64
-          EOF
+[pmbootstrap]
+aports = $APORTS
+work = $WORK
+device = qemu-aarch64
+kernel = edge
+user = root
+ui = console
+extra_packages = none
+build_pkgs_on_install = False
+is_default_channel = False
+locale = en_US.UTF-8
+mirror_alpine = http://dl-cdn.alpinelinux.org/alpine/
+mirrors_postmarketos = http://mirror.postmarketos.org/postmarketos/
+nonfree_firmware = False
+nonfree_userland = False
+ssh_keys = False
+[providers]
+[pmaports]
+supported_arches = aarch64
+EOF
 
           git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmaports.git "$APORTS"
-          pmbootstrap -c "$CONFIG" -p "$APORTS" -y status
+          pmbootstrap -c "$CONFIG" -p "$APORTS" status
 
       - name: Build postmarketOS ARM64 rootfs only
         run: |
