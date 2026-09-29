@@ -25,7 +25,7 @@ jobs:
 
       - name: Install current pmbootstrap
         run: |
-          git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
+          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
           mkdir -p "$HOME/.local/bin"
           ln -sf "$RUNNER_TEMP/pmbootstrap/pmbootstrap.py" "$HOME/.local/bin/pmbootstrap"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -45,7 +45,7 @@ jobs:
           aports = $APORTS
           work = $WORK
           device = qemu-aarch64
-          kernel = edge
+          kernel = stable
           user = root
           ui = console
           extra_packages = none
