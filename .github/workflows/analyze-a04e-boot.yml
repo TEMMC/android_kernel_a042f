@@ -1,0 +1,39 @@
+name: Analyze A04e stock boot image
+
+on:
+  workflow_dispatch:
+
+jobs:
+  analyze-boot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git python3 python3-pip python3-venv curl xz-utils
+      - name: Download verified stock boot
+        run: |
+          mkdir -p input
+          curl -L --fail --retry 3 \
+            -o input/A04e-stock-boot.img \
+            https://github.com/TEMMC/android_kernel_a042f/releases/download/a04e-stock-boot-20260929/A04e-stock-boot.img
+          sha256sum input/A04e-stock-boot.img
+          test "$(sha256sum input/A04e-stock-boot.img | cut -d' ' -f1)" = "797db41a6d3cfe9056db60e841b852c76206b01d4715ff58331f2b8b9fc86a80"
+      - name: Install current pmbootstrap
+        run: |
+          git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
+          mkdir -p "$HOME/.local/bin"
+          ln -sf "$RUNNER_TEMP/pmbootstrap/pmbootstrap.py" "$HOME/.local/bin/pmbootstrap"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          pmbootstrap --version
+      - name: Analyze Android boot image
+        run: |
+          set -eux
+          pmbootstrap bootimg_analyze input/A04e-stock-boot.img
+      - name: Upload analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: A04e-stock-boot-analysis
+          path: |
+            input/A04e-stock-boot.img
+          retention-days: 7
