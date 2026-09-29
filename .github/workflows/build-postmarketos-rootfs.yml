@@ -25,7 +25,7 @@ jobs:
 
       - name: Install current pmbootstrap
         run: |
-          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
+          git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
           mkdir -p "$HOME/.local/bin"
           ln -sf "$RUNNER_TEMP/pmbootstrap/pmbootstrap.py" "$HOME/.local/bin/pmbootstrap"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -86,7 +86,7 @@ jobs:
 
           STAGE="$RUNNER_TEMP/rootfs-stage"
           rm -rf "$STAGE"
-          mkdir -p "$STAGE"
+          sudo mkdir -p "$STAGE"
 
           sudo rsync -aHAX --numeric-ids \
             --exclude='/proc/***' \
@@ -97,8 +97,9 @@ jobs:
 
           sudo mkdir -p "$STAGE/proc" "$STAGE/sys" "$STAGE/dev" "$STAGE/run"
 
-          mkdir -p out
+          sudo mkdir -p out
           sudo tar -C "$STAGE" -cJf out/postmarketos-a04e-arm64-rootfs.tar.xz .
+          sudo chown "$USER":"$USER" out/postmarketos-a04e-arm64-rootfs.tar.xz
           du -h out/postmarketos-a04e-arm64-rootfs.tar.xz
           tar -tJf out/postmarketos-a04e-arm64-rootfs.tar.xz | head -40
 
