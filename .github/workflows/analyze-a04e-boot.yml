@@ -26,6 +26,9 @@ jobs:
           ln -sf "$RUNNER_TEMP/pmbootstrap/pmbootstrap.py" "$HOME/.local/bin/pmbootstrap"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           pmbootstrap --version
+      - name: Initialize pmbootstrap
+        run: |
+          pmbootstrap init --non-interactive
       - name: Analyze Android boot image
         run: |
           set -eux
