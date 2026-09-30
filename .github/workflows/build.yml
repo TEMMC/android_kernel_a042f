@@ -35,6 +35,13 @@ jobs:
         name: KernelSU-Next-SM-A042F-${{ github.event.inputs.tag || github.sha }}
         path: build/*.tar
 
+    - name: Upload kernel bundle for native A04e image job
+      uses: actions/upload-artifact@v4
+      with:
+        name: A04e-kernel-build
+        path: build/*.tar
+        retention-days: 1
+
     - name: Create release
       if: github.event_name == 'workflow_dispatch'
       uses: ncipollo/release-action@v1
@@ -46,3 +53,169 @@ jobs:
         token: ${{ secrets.TOKEN }}
         artifacts: "build/*.tar"
         body: "Commit SHA: ${{ github.sha }}"
+
+  bootable:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout A04e source
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+
+    - name: Install build tools
+      run: |
+        set -eux
+        sudo apt-get update
+        sudo apt-get install -y git python3 cpio gzip xz-utils e2fsprogs rsync qemu-user-static binfmt-support busybox-static android-sdk-libsparse-utils file openssl tar
+
+    - name: Download compiled A04e kernel
+      uses: actions/download-artifact@v4
+      with:
+        name: A04e-kernel-build
+        path: work/kernel-artifact
+
+    - name: Prepare kernel boot image
+      run: |
+        set -eux
+        mkdir -p work/kernel
+        tar -xf work/kernel-artifact/*.tar -C work/kernel
+        test -s work/kernel/boot.img
+
+    - name: Build postmarketOS ARM64 root filesystem
+      run: |
+        set -eux
+        git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
+        mkdir -p "$HOME/.local/bin"
+        ln -sf "$RUNNER_TEMP/pmbootstrap/pmbootstrap.py" "$HOME/.local/bin/pmbootstrap"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        WORK="$RUNNER_TEMP/pmbootstrap-work"
+        APORTS="$WORK/cache_git/pmaports"
+        CONFIG="$RUNNER_TEMP/pmbootstrap-aarch64.cfg"
+        mkdir -p "$WORK/cache_git"
+        printf '%s\n' '8' > "$WORK/version"
+        git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmaports.git "$APORTS"
+        cat > "$CONFIG" <<EOF
+[pmbootstrap]
+aports = $APORTS
+work = $WORK
+device = qemu-aarch64
+kernel = stable
+user = root
+ui = console
+extra_packages = openssh,networkmanager
+build_pkgs_on_install = False
+is_default_channel = False
+locale = en_US.UTF-8
+mirror_alpine = http://dl-cdn.alpinelinux.org/alpine/
+mirrors_postmarketOS = http://mirror.postmarketos.org/postmarketos/
+nonfree_firmware = False
+nonfree_userland = False
+ssh_keys = False
+[providers]
+[pmaports]
+supported_arches = aarch64
+EOF
+        pmbootstrap -c "$CONFIG" -p "$APORTS" install --no-image --filesystem ext4 --add "openssh,networkmanager"
+        ROOTFS="$(find "$WORK" -maxdepth 1 -type d -name 'chroot_rootfs_qemu-aarch64' | head -n1)"
+        test -n "$ROOTFS"
+        test -f "$ROOTFS/etc/os-release"
+        sudo mkdir -p "$ROOTFS/etc/a04e"
+        echo "Samsung Galaxy A04e / SM-A042F native postmarketOS" | sudo tee "$ROOTFS/etc/a04e/README" >/dev/null
+        echo "root_partition=userdata" | sudo tee "$ROOTFS/etc/a04e/boot-layout" >/dev/null
+        mkdir -p work/rootfs
+        sudo rsync -aHAX --numeric-ids "$ROOTFS"/ work/rootfs/
+
+    - name: Create A04e USERDATA ext4 image
+      run: |
+        set -eux
+        mkdir -p out
+        truncate -s 6G out/A04e-postmarketOS-rootfs.img
+        mkfs.ext4 -F -L PMOSROOT out/A04e-postmarketOS-rootfs.img
+        sudo mkdir -p /mnt/a04e-rootfs
+        sudo mount -o loop out/A04e-postmarketOS-rootfs.img /mnt/a04e-rootfs
+        sudo rsync -aHAX --numeric-ids work/rootfs/ /mnt/a04e-rootfs/
+        sync
+        sudo umount /mnt/a04e-rootfs
+        e2fsck -fy out/A04e-postmarketOS-rootfs.img
+        img2simg out/A04e-postmarketOS-rootfs.img out/A04e-postmarketOS-rootfs-sparse.img
+        xz -T0 -9 -c out/A04e-postmarketOS-rootfs.img > out/A04e-postmarketOS-rootfs.img.xz
+        xz -T0 -9 -c out/A04e-postmarketOS-rootfs-sparse.img > out/A04e-postmarketOS-rootfs-sparse.img.xz
+
+    - name: Prepare native A04e initramfs
+      run: |
+        set -eux
+        rm -rf work/aik
+        cp -a AIK-Linux work/aik
+        cd work/aik
+        ./unpackimg.sh --nosudo ../kernel/boot.img
+        test "$(cat split_img/boot.img-header_version)" = "2"
+        test "$(cat split_img/boot.img-pagesize)" = "2048"
+        mkdir -p ramdisk/sbin
+        cp "$(command -v busybox)" ramdisk/sbin/busybox
+        chmod 0755 ramdisk/sbin/busybox
+        if [ -f ramdisk/init ]; then mv ramdisk/init ramdisk/android-init; fi
+        cat > ramdisk/init <<'EOF'
+#!/sbin/busybox sh
+export PATH=/sbin:/bin:/usr/sbin:/usr/bin
+echo "A04e-pmOS: native initramfs" > /dev/kmsg 2>/dev/null || true
+mkdir -p /proc /sys /dev /run /newroot
+mount -t proc proc /proc 2>/dev/null || true
+mount -t sysfs sysfs /sys 2>/dev/null || true
+mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
+/sbin/busybox mdev -s 2>/dev/null || true
+ROOTDEV=""
+i=0
+while [ "$i" -lt 30 ]; do
+  for u in /sys/class/block/mmcblk*p*/uevent; do
+    [ -f "$u" ] || continue
+    name="$(sed -n 's/^PARTNAME=//p' "$u" 2>/dev/null)"
+    [ "$name" = "userdata" ] || continue
+    b="$(basename "$(dirname "$u")")"
+    d="/dev/$b"
+    if [ ! -b "$d" ]; then
+      maj="$(sed -n 's/^MAJOR=//p' "$u")"
+      min="$(sed -n 's/^MINOR=//p' "$u")"
+      [ -n "$maj" ] && [ -n "$min" ] && /sbin/busybox mknod "$d" b "$maj" "$min" 2>/dev/null || true
+    fi
+    [ -b "$d" ] && ROOTDEV="$d"
+  done
+  [ -n "$ROOTDEV" ] && break
+  sleep 1
+  i=$((i+1))
+done
+if [ -z "$ROOTDEV" ]; then
+  echo "A04e-pmOS: userdata not found" > /dev/kmsg 2>/dev/null || true
+  exec /sbin/busybox sh
+fi
+mount -t ext4 -o rw,noatime "$ROOTDEV" /newroot 2>/dev/null || exec /sbin/busybox sh
+[ -x /newroot/sbin/init ] || exec /sbin/busybox sh
+[ -e /sys/fs/selinux/enforce ] && echo 0 > /sys/fs/selinux/enforce 2>/dev/null || true
+mkdir -p /newroot/dev /newroot/proc /newroot/sys /newroot/run
+mount --move /dev /newroot/dev 2>/dev/null || true
+mount --move /proc /newroot/proc 2>/dev/null || true
+mount --move /sys /newroot/sys 2>/dev/null || true
+exec /sbin/busybox switch_root -c /dev/console /newroot /sbin/init
+EOF
+        chmod 0755 ramdisk/init
+        CMD="$(cat split_img/boot.img-cmdline)"
+        case " $CMD " in
+          *" androidboot.selinux="*) ;;
+          *) CMD="$CMD androidboot.selinux=permissive" ;;
+        esac
+        printf '%s\n' "$CMD" > split_img/boot.img-cmdline
+        ./repackimg.sh --nosudo --origsize
+        test -s image-new.img
+        mv image-new.img ../../out/A04e-postmarketOS-boot.img
+        cd ../..
+
+    - name: Verify and upload native bundle
+      uses: actions/upload-artifact@v4
+      with:
+        name: A04e-native-postmarketOS-bootable-bundle
+        path: |
+          out/A04e-postmarketOS-boot.img
+          out/A04e-postmarketOS-rootfs.img.xz
+          out/A04e-postmarketOS-rootfs-sparse.img.xz
+        if-no-files-found: error
+        retention-days: 30
