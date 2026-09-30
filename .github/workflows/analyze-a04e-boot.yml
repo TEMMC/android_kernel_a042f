@@ -2,83 +2,52 @@ name: Analyze A04e stock boot image
 
 on:
   push:
-    branches:
-      - a04e
+    branches: [a04e]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   analyze-boot:
     runs-on: ubuntu-latest
     steps:
-      - name: Install tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git python3 python3-pip python3-venv curl xz-utils
-
       - name: Download verified stock boot
+        shell: bash
         run: |
-          set -eux
+          set -euo pipefail
           mkdir -p input
-          curl -L --fail --retry 3 \
-            -o input/A04e-stock-boot.img \
+          curl -fL --retry 3 -o input/A04e-stock-boot.img \
             https://github.com/TEMMC/android_kernel_a042f/releases/download/a04e-stock-boot-20260929/A04e-stock-boot.img
           sha256sum input/A04e-stock-boot.img
           test "$(sha256sum input/A04e-stock-boot.img | cut -d' ' -f1)" = "797db41a6d3cfe9056db60e841b852c76206b01d4715ff58331f2b8b9fc86a80"
 
-      - name: Install current pmbootstrap
+      - name: Inspect Android boot header
+        shell: bash
         run: |
-          set -eux
-          git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
-          mkdir -p "$HOME/.local/bin"
-          ln -sf "$RUNNER_TEMP/pmbootstrap/pmbootstrap.py" "$HOME/.local/bin/pmbootstrap"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          pmbootstrap --version
+          set -euo pipefail
+          python3 - <<'PY'
+          import struct
+          p='input/A04e-stock-boot.img'
+          with open(p,'rb') as f:
+              h=f.read(64)
+          print('magic:', h[:8])
+          if h[:8] != b'ANDROID!':
+              raise SystemExit('Not an Android boot image')
+          vals=struct.unpack_from('<10I', h, 8)
+          print('kernel_size:', vals[0])
+          print('ramdisk_size:', vals[1])
+          print('second_size:', vals[2])
+          print('page_size:', vals[4])
+          print('header_version:', vals[7])
+          print('os_version_field:', hex(vals[8]))
+          PY
+          file input/A04e-stock-boot.img
+          ls -lh input/A04e-stock-boot.img
 
-      - name: Create pmbootstrap config
-        run: |
-          set -eux
-          WORK="$RUNNER_TEMP/pmbootstrap-work"
-          APORTS="$WORK/cache_git/pmaports"
-          CONFIG="$RUNNER_TEMP/pmbootstrap.cfg"
-          mkdir -p "$WORK/cache_git"
-          printf '%s\n' '8' > "$WORK/version"
-          git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmaports.git "$APORTS"
-          cat > "$CONFIG" <<EOF
-[pmbootstrap]
-aports = $APORTS
-work = $WORK
-device = qemu-aarch64
-kernel = stable
-user = root
-ui = console
-extra_packages = none
-build_pkgs_on_install = False
-is_default_channel = False
-locale = en_US.UTF-8
-mirror_alpine = http://dl-cdn.alpinelinux.org/alpine/
-mirrors_postmarketOS = http://mirror.postmarketos.org/postmarketos/
-nonfree_firmware = False
-nonfree_userland = False
-ssh_keys = False
-[providers]
-[pmaports]
-supported_arches = aarch64
-EOF
-
-      - name: Analyze Android boot image
-        run: |
-          set -eux
-          WORK="$RUNNER_TEMP/pmbootstrap-work"
-          APORTS="$WORK/cache_git/pmaports"
-          CONFIG="$RUNNER_TEMP/pmbootstrap.cfg"
-          pmbootstrap -c "$CONFIG" -p "$APORTS" bootimg_analyze input/A04e-stock-boot.img > input/bootimg-analysis.txt 2>&1
-          cat input/bootimg-analysis.txt
-
-      - name: Upload boot analysis
+      - name: Upload verified boot inspection
         uses: actions/upload-artifact@v4
         with:
           name: A04e-stock-boot-analysis
-          path: |
-            input/A04e-stock-boot.img
-            input/bootimg-analysis.txt
+          path: input/A04e-stock-boot.img
           retention-days: 30
