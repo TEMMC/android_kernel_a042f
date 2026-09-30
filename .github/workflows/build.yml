@@ -54,29 +54,18 @@ jobs:
         artifacts: "build/*.tar"
         body: "Commit SHA: ${{ github.sha }}"
 
-    steps:
-    - name: Checkout A04e source
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 1
-
-    - name: Install build tools
+    
+    - name: Install native image build tools
       run: |
         set -eux
         sudo apt-get update
         sudo apt-get install -y git python3 cpio gzip xz-utils e2fsprogs rsync qemu-user-static binfmt-support busybox-static android-sdk-libsparse-utils file openssl tar
 
-    - name: Download compiled A04e kernel
-      uses: actions/download-artifact@v4
-      with:
-        name: A04e-kernel-build
-        path: work/kernel-artifact
-
-    - name: Prepare kernel boot image
+    - name: Prepare compiled A04e kernel
       run: |
         set -eux
         mkdir -p work/kernel
-        tar -xf work/kernel-artifact/*.tar -C work/kernel
+        tar -xf build/*.tar -C work/kernel
         test -s work/kernel/boot.img
 
     - name: Build postmarketOS ARM64 root filesystem
@@ -166,25 +155,22 @@ i=0
 while [ "$i" -lt 30 ]; do
   for u in /sys/class/block/mmcblk*p*/uevent; do
     [ -f "$u" ] || continue
-    name="$(sed -n 's/^PARTNAME=//p' "$u" 2>/dev/null)"
+    name="$(/sbin/busybox sed -n 's/^PARTNAME=//p' "$u" 2>/dev/null)"
     [ "$name" = "userdata" ] || continue
-    b="$(basename "$(dirname "$u")")"
+    b="$(/sbin/busybox basename "$(dirname "$u")")"
     d="/dev/$b"
-    if [ ! -b "$d" ]; then
-      maj="$(sed -n 's/^MAJOR=//p' "$u")"
-      min="$(sed -n 's/^MINOR=//p' "$u")"
+    [ -b "$d" ] || {
+      maj="$(/sbin/busybox sed -n 's/^MAJOR=//p' "$u")"
+      min="$(/sbin/busybox sed -n 's/^MINOR=//p' "$u")"
       [ -n "$maj" ] && [ -n "$min" ] && /sbin/busybox mknod "$d" b "$maj" "$min" 2>/dev/null || true
-    fi
+    }
     [ -b "$d" ] && ROOTDEV="$d"
   done
   [ -n "$ROOTDEV" ] && break
-  sleep 1
+  /sbin/busybox sleep 1
   i=$((i+1))
 done
-if [ -z "$ROOTDEV" ]; then
-  echo "A04e-pmOS: userdata not found" > /dev/kmsg 2>/dev/null || true
-  exec /sbin/busybox sh
-fi
+[ -n "$ROOTDEV" ] || exec /sbin/busybox sh
 mount -t ext4 -o rw,noatime "$ROOTDEV" /newroot 2>/dev/null || exec /sbin/busybox sh
 [ -x /newroot/sbin/init ] || exec /sbin/busybox sh
 [ -e /sys/fs/selinux/enforce ] && echo 0 > /sys/fs/selinux/enforce 2>/dev/null || true
