@@ -54,9 +54,6 @@ jobs:
         artifacts: "build/*.tar"
         body: "Commit SHA: ${{ github.sha }}"
 
-  bootable:
-    needs: build
-    runs-on: ubuntu-latest
     steps:
     - name: Checkout A04e source
       uses: actions/checkout@v4
