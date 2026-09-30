@@ -122,6 +122,7 @@ EOF
           test "$(cat split_img/boot.img-header_version)" = "2"
           test "$(cat split_img/boot.img-pagesize)" = "2048"
 
+          mkdir -p ramdisk/sbin
           cp "$(command -v busybox)" ramdisk/sbin/busybox
           chmod 0755 ramdisk/sbin/busybox
 
@@ -160,7 +161,7 @@ while [ "$i" -lt 30 ]; do
     if [ ! -b "$d" ]; then
       majmin="$(sed -n 's/^MAJOR=//p;s/^MINOR=//p' "$u" | tr '\n' ' ')"
       set -- $majmin
-      [ "$#" = 2 ] && /sbin/busybox mknod "$d" b "$1" "$2" 2>/dev/null || true
+      [ "$#" -eq 2 ] && /sbin/busybox mknod "$d" b "$1" "$2" 2>/dev/null || true
     fi
     [ -b "$d" ] && ROOTDEV="$d"
   done
