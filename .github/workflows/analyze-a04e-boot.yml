@@ -1,6 +1,9 @@
 name: Analyze A04e stock boot image
 
 on:
+  push:
+    branches:
+      - boot-analysis-run
   workflow_dispatch:
 
 jobs:
