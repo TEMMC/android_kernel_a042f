@@ -62,23 +62,7 @@ jobs:
           curl -fL -o work/stock-boot.img "https://github.com/TEMMC/android_kernel_a042f/releases/download/a04e-stock-boot-20260929/A04e-stock-boot.img"
           echo "797db41a6d3cfe9056db60e841b852c76206b01d4715ff58331f2b8b9fc86a80  work/stock-boot.img" | sha256sum -c -
 
-      - name: Create USERDATA rootfs image
-        run: |
-          set -eux
-          truncate -s 6G out/A04e-postmarketOS-rootfs.img
-          mkfs.ext4 -F -L PMOSROOT out/A04e-postmarketOS-rootfs.img
-          sudo mkdir -p /mnt/a04e-rootfs
-          sudo mount -o loop out/A04e-postmarketOS-rootfs.img /mnt/a04e-rootfs
-          sudo tar -xJf work/rootfs.tar.xz -C /mnt/a04e-rootfs
-          sudo mkdir -p /mnt/a04e-rootfs/proc /mnt/a04e-rootfs/sys /mnt/a04e-rootfs/dev /mnt/a04e-rootfs/run
-          sync
-          sudo umount /mnt/a04e-rootfs
-          e2fsck -fy out/A04e-postmarketOS-rootfs.img
-          img2simg out/A04e-postmarketOS-rootfs.img out/A04e-postmarketOS-rootfs-sparse.img
-          xz -T0 -9 -c out/A04e-postmarketOS-rootfs.img > out/A04e-postmarketOS-rootfs.img.xz
-          xz -T0 -9 -c out/A04e-postmarketOS-rootfs-sparse.img > out/A04e-postmarketOS-rootfs-sparse.img.xz
-
-      - name: Extract compiled kernel from kernel artifact
+      - name: Extract compiled kernel and modules from kernel artifact
         run: |
           set -eux
           rm -rf work/kernel-aik
@@ -90,8 +74,32 @@ jobs:
           test -s "$KERNEL_FILE"
           cp "$KERNEL_FILE" ../../work/compiled-kernel
           test -s ../../work/compiled-kernel
+          test -s ../kernel/kernel-release.txt
+          KREL="$(cat ../kernel/kernel-release.txt)"
+          test -d "../kernel/modules/lib/modules/$KREL"
+          find "../kernel/modules/lib/modules/$KREL" -type f -name '*.ko' | grep -q .
           sha256sum ../../work/compiled-kernel
           cd ../..
+
+      - name: Create USERDATA rootfs image
+        run: |
+          set -eux
+          truncate -s 6G out/A04e-postmarketOS-rootfs.img
+          mkfs.ext4 -F -L PMOSROOT out/A04e-postmarketOS-rootfs.img
+          sudo mkdir -p /mnt/a04e-rootfs
+          sudo mount -o loop out/A04e-postmarketOS-rootfs.img /mnt/a04e-rootfs
+          sudo tar -xJf work/rootfs.tar.xz -C /mnt/a04e-rootfs
+          KREL="$(cat work/kernel/kernel-release.txt)"
+          sudo mkdir -p "/mnt/a04e-rootfs/lib/modules/${KREL}"
+          sudo cp -a "work/kernel/modules/lib/modules/${KREL}/." "/mnt/a04e-rootfs/lib/modules/${KREL}/"
+          sudo test -n "$(find "/mnt/a04e-rootfs/lib/modules/${KREL}" -type f -name "*.ko" -print -quit)"
+          sudo mkdir -p /mnt/a04e-rootfs/proc /mnt/a04e-rootfs/sys /mnt/a04e-rootfs/dev /mnt/a04e-rootfs/run
+          sync
+          sudo umount /mnt/a04e-rootfs
+          e2fsck -fy out/A04e-postmarketOS-rootfs.img
+          img2simg out/A04e-postmarketOS-rootfs.img out/A04e-postmarketOS-rootfs-sparse.img
+          xz -T0 -9 -c out/A04e-postmarketOS-rootfs.img > out/A04e-postmarketOS-rootfs.img.xz
+          xz -T0 -9 -c out/A04e-postmarketOS-rootfs-sparse.img > out/A04e-postmarketOS-rootfs-sparse.img.xz
 
       - name: Build native postmarketOS boot image
         run: |
@@ -123,12 +131,14 @@ jobs:
           chmod 0755 ramdisk/init
           CMD="$(cat "$CMDLINE_FILE")"
           case " $CMD " in *" androidboot.selinux="*) ;; *) CMD="$CMD androidboot.selinux=permissive" ;; esac
+          case " $CMD " in *" firmware_class.path="*) ;; *) CMD="$CMD firmware_class.path=/lib/firmware" ;; esac
           printf '%s\n' "$CMD" > "$CMDLINE_FILE"
           ./repackimg.sh --nosudo --origsize
           test -s image-new.img
           mv image-new.img ../../out/A04e-postmarketOS-boot.img
           cd ../..
           file out/A04e-postmarketOS-boot.img
+          test "$(stat -c %s out/A04e-postmarketOS-boot.img)" -le 33554432
           sha256sum out/A04e-postmarketOS-boot.img
 
       - name: Verify boot image
@@ -152,6 +162,12 @@ jobs:
           sha256sum out/A04e-postmarketOS-boot.img > out/SHA256SUMS
           sha256sum out/A04e-postmarketOS-rootfs.img.xz >> out/SHA256SUMS
           sha256sum out/A04e-postmarketOS-rootfs-sparse.img.xz >> out/SHA256SUMS
+          {
+            stat -c "%n %s bytes" out/A04e-postmarketOS-boot.img
+            stat -c "%n %s bytes" out/A04e-postmarketOS-rootfs.img.xz
+            stat -c "%n %s bytes" out/A04e-postmarketOS-rootfs-sparse.img.xz
+            stat -c "%n %s bytes" out/SHA256SUMS
+          } | tee out/artifact-sizes.txt
 
       - name: Upload native postmarketOS bundle
         uses: actions/upload-artifact@v4
@@ -162,5 +178,6 @@ jobs:
             out/A04e-postmarketOS-rootfs.img.xz
             out/A04e-postmarketOS-rootfs-sparse.img.xz
             out/SHA256SUMS
+            out/artifact-sizes.txt
           if-no-files-found: error
           retention-days: 30
