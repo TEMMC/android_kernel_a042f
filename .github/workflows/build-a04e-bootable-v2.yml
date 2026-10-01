@@ -86,17 +86,23 @@ jobs:
           cd work/aik
           sudo ./unpackimg.sh ../stock-boot.img
           sudo chown -R "$(id -u):$(id -g)" split_img ramdisk
-          test "$(cat split_img/boot.img-header_version)" = 2
-          test "$(cat split_img/boot.img-pagesize)" = 2048
+          HEADER_FILE=$(find split_img -maxdepth 1 -type f -name '*-header_version' | head -n1)
+          PAGESIZE_FILE=$(find split_img -maxdepth 1 -type f -name '*-pagesize' | head -n1)
+          CMDLINE_FILE=$(find split_img -maxdepth 1 -type f -name '*-cmdline' | head -n1)
+          test -s "$HEADER_FILE"
+          test -s "$PAGESIZE_FILE"
+          test -s "$CMDLINE_FILE"
+          test "$(cat "$HEADER_FILE")" = 2
+          test "$(cat "$PAGESIZE_FILE")" = 2048
           mkdir -p ramdisk/sbin
           cp "$(command -v busybox)" ramdisk/sbin/busybox
           chmod 0755 ramdisk/sbin/busybox
           [ -f ramdisk/init ] && mv ramdisk/init ramdisk/android-init || true
           cp ../../native-initramfs/a04e-init ramdisk/init
           chmod 0755 ramdisk/init
-          CMD="$(cat split_img/boot.img-cmdline)"
+          CMD="$(cat "$CMDLINE_FILE")"
           case " $CMD " in *" androidboot.selinux="*) ;; *) CMD="$CMD androidboot.selinux=permissive" ;; esac
-          printf '%s\n' "$CMD" > split_img/boot.img-cmdline
+          printf '%s\n' "$CMD" > "$CMDLINE_FILE"
           ./repackimg.sh --nosudo --origsize
           test -s image-new.img
           mv image-new.img ../../out/A04e-postmarketOS-boot.img
