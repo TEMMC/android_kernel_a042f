@@ -78,6 +78,21 @@ jobs:
           xz -T0 -9 -c out/A04e-postmarketOS-rootfs.img > out/A04e-postmarketOS-rootfs.img.xz
           xz -T0 -9 -c out/A04e-postmarketOS-rootfs-sparse.img > out/A04e-postmarketOS-rootfs-sparse.img.xz
 
+      - name: Extract compiled kernel from kernel artifact
+        run: |
+          set -eux
+          rm -rf work/kernel-aik
+          cp -a AIK-Linux work/kernel-aik
+          cd work/kernel-aik
+          sudo ./unpackimg.sh ../kernel/boot.img
+          sudo chown -R "$(id -u):$(id -g)" split_img ramdisk
+          KERNEL_FILE="$(find split_img -maxdepth 1 -type f -name '*-kernel' | head -n1)"
+          test -s "$KERNEL_FILE"
+          cp "$KERNEL_FILE" ../../work/compiled-kernel
+          test -s ../../work/compiled-kernel
+          sha256sum ../../work/compiled-kernel
+          cd ../..
+
       - name: Build native postmarketOS boot image
         run: |
           set -eux
@@ -89,11 +104,17 @@ jobs:
           HEADER_FILE=$(find split_img -maxdepth 1 -type f -name '*-header_version' | head -n1)
           PAGESIZE_FILE=$(find split_img -maxdepth 1 -type f -name '*-pagesize' | head -n1)
           CMDLINE_FILE=$(find split_img -maxdepth 1 -type f -name '*-cmdline' | head -n1)
+          KERNEL_FILE=$(find split_img -maxdepth 1 -type f -name '*-kernel' | head -n1)
           test -s "$HEADER_FILE"
           test -s "$PAGESIZE_FILE"
           test -s "$CMDLINE_FILE"
+          test -s "$KERNEL_FILE"
           test "$(cat "$HEADER_FILE")" = 2
           test "$(cat "$PAGESIZE_FILE")" = 2048
+          cp ../../work/compiled-kernel "$KERNEL_FILE"
+          test -s "$KERNEL_FILE"
+          echo "Compiled kernel installed into native boot image:"
+          sha256sum ../../work/compiled-kernel "$KERNEL_FILE"
           mkdir -p ramdisk/sbin
           cp "$(command -v busybox)" ramdisk/sbin/busybox
           chmod 0755 ramdisk/sbin/busybox
@@ -118,10 +139,15 @@ jobs:
           cd work/verify
           sudo ./unpackimg.sh ../../out/A04e-postmarketOS-boot.img > ../../out/boot-verify.txt 2>&1
           grep -E 'Image type:|Done!' ../../out/boot-verify.txt
-          test "$(cat split_img/*-header_version | head -n1)" = 2
-          test "$(cat split_img/*-pagesize | head -n1)" = 2048
+          HEADER_FILE=$(find split_img -maxdepth 1 -type f -name '*-header_version' | head -n1)
+          PAGESIZE_FILE=$(find split_img -maxdepth 1 -type f -name '*-pagesize' | head -n1)
+          KERNEL_FILE=$(find split_img -maxdepth 1 -type f -name '*-kernel' | head -n1)
+          test "$(cat "$HEADER_FILE")" = 2
+          test "$(cat "$PAGESIZE_FILE")" = 2048
+          test -s "$KERNEL_FILE"
           test -x ramdisk/init
           grep -q 'switching to native postmarketOS' ramdisk/init
+          cmp ../../work/compiled-kernel "$KERNEL_FILE"
           cd ../..
           sha256sum out/A04e-postmarketOS-boot.img > out/SHA256SUMS
           sha256sum out/A04e-postmarketOS-rootfs.img.xz >> out/SHA256SUMS
