@@ -77,6 +77,15 @@ jobs:
             --password "pmos-test" \
             --add "openssh,networkmanager"
 
+      - name: Prepare native rootfs credentials and firmware path
+        run: |
+          set -eux
+          ROOTFS="$(find "$RUNNER_TEMP/pmbootstrap-work" -maxdepth 1 -type d -name 'chroot_rootfs_qemu-aarch64' | head -n1)"
+          test -n "$ROOTFS"
+          sudo chroot "$ROOTFS" /bin/sh -c 'echo "root:pmos-test" | chpasswd; passwd -u root || true'
+          sudo mkdir -p "$ROOTFS/lib/firmware"
+          printf '%s\n' 'A04e native rootfs: device/vendor firmware must be supplied separately before hardware bring-up.' | sudo tee "$ROOTFS/lib/firmware/README.A04E" >/dev/null
+          sudo awk -F: '$1 == "root" {print $2}' "$ROOTFS/etc/shadow" | grep -qv '^!'
       - name: Package rootfs
         run: |
           set -eux
