@@ -84,7 +84,8 @@ jobs:
           rm -rf work/aik
           cp -a AIK-Linux work/aik
           cd work/aik
-          ./unpackimg.sh --nosudo ../stock-boot.img
+          sudo ./unpackimg.sh ../stock-boot.img
+          sudo chown -R "$(id -u):$(id -g)" split_img ramdisk
           test "$(cat split_img/boot.img-header_version)" = 2
           test "$(cat split_img/boot.img-pagesize)" = 2048
           mkdir -p ramdisk/sbin
@@ -109,7 +110,7 @@ jobs:
           rm -rf work/verify
           cp -a AIK-Linux work/verify
           cd work/verify
-          ./unpackimg.sh --nosudo ../../out/A04e-postmarketOS-boot.img > ../../out/boot-verify.txt 2>&1
+          sudo ./unpackimg.sh ../../out/A04e-postmarketOS-boot.img > ../../out/boot-verify.txt 2>&1
           grep -E 'Image type:|Done!' ../../out/boot-verify.txt
           test "$(cat split_img/*-header_version | head -n1)" = 2
           test "$(cat split_img/*-pagesize | head -n1)" = 2048
