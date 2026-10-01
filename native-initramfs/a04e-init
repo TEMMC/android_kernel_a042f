@@ -1,0 +1,49 @@
+#!/sbin/busybox sh
+export PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+log() {
+  echo "A04e-pmOS: $*" > /dev/kmsg 2>/dev/null || true
+}
+
+mkdir -p /proc /sys /dev /run /newroot
+mount -t proc proc /proc 2>/dev/null || true
+mount -t sysfs sysfs /sys 2>/dev/null || true
+mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
+/sbin/busybox mdev -s 2>/dev/null || true
+
+ROOTDEV=""
+i=0
+while [ "$i" -lt 45 ]; do
+  for u in /sys/class/block/mmcblk*p*/uevent; do
+    [ -f "$u" ] || continue
+    name="$(sed -n 's/^PARTNAME=//p' "$u" 2>/dev/null)"
+    [ "$name" = "userdata" ] || continue
+    b="$(basename "$(dirname "$u")")"
+    d="/dev/$b"
+    if [ ! -b "$d" ]; then
+      maj="$(sed -n 's/^MAJOR=//p' "$u" 2>/dev/null)"
+      min="$(sed -n 's/^MINOR=//p' "$u" 2>/dev/null)"
+      [ -n "$maj" ] && [ -n "$min" ] && /sbin/busybox mknod "$d" b "$maj" "$min" 2>/dev/null || true
+    fi
+    [ -b "$d" ] && ROOTDEV="$d"
+  done
+  [ -n "$ROOTDEV" ] && break
+  /sbin/busybox sleep 1
+  i=$((i + 1))
+done
+
+[ -n "$ROOTDEV" ] || { log "userdata partition not found"; exec /sbin/busybox sh; }
+log "using root device $ROOTDEV"
+mount -t ext4 -o rw,noatime "$ROOTDEV" /newroot 2>/dev/null || { log "userdata ext4 mount failed"; exec /sbin/busybox sh; }
+[ -x /newroot/sbin/init ] || { log "postmarketOS init not found"; exec /sbin/busybox sh; }
+
+if [ -e /sys/fs/selinux/enforce ]; then
+  echo 0 > /sys/fs/selinux/enforce 2>/dev/null || true
+fi
+
+mkdir -p /newroot/dev /newroot/proc /newroot/sys /newroot/run
+mount --move /dev /newroot/dev 2>/dev/null || true
+mount --move /proc /newroot/proc 2>/dev/null || true
+mount --move /sys /newroot/sys 2>/dev/null || true
+log "switching to native postmarketOS"
+exec /sbin/busybox switch_root -c /dev/console /newroot /sbin/init
