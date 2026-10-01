@@ -42,6 +42,19 @@ build_kernel(){
     make ${ARGS} menuconfig
     make ${ARGS} || exit 1
     cp out/arch/arm64/boot/Image.gz $(pwd)/arch/arm64/boot/Image.gz
+    echo "[i] Verifying required native A04e kernel options"
+    grep -q "^CONFIG_ARCH_MEDIATEK=y$" out/.config
+    grep -q "^CONFIG_MACH_MT6765=y$" out/.config
+    grep -q "^CONFIG_MODULES=y$" out/.config
+    grep -q "^CONFIG_DEVTMPFS=y$" out/.config
+    grep -q "^# CONFIG_DEVTMPFS_MOUNT is not set$" out/.config
+    make ${ARGS} kernelrelease > "${RDIR}/build/kernel-release.txt"
+    KREL="$(cat "${RDIR}/build/kernel-release.txt")"
+    rm -rf "${RDIR}/build/modules"
+    mkdir -p "${RDIR}/build/modules"
+    make ${ARGS} modules_install INSTALL_MOD_PATH="${RDIR}/build/modules" INSTALL_MOD_STRIP=1 DEPMOD=true
+    test -d "${RDIR}/build/modules/lib/modules/${KREL}"
+    find "${RDIR}/build/modules/lib/modules/${KREL}" -type f -name "*.ko" | grep -q .
 }
 
 #build boot.img
@@ -55,7 +68,7 @@ build_boot() {
 #build odin flashable tar
 build_tar(){
     cd ${RDIR}/build
-    tar -cvf "KernelSU-Next-SM-A042F.tar" boot.img && rm boot.img
+    tar -cvf "KernelSU-Next-SM-A042F.tar" boot.img modules kernel-release.txt && rm -rf boot.img modules kernel-release.txt
     echo -e "\n[i] Build Finished..!\n" && cd ${RDIR}
 }
 
