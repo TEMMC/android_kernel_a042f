@@ -17,7 +17,7 @@ while [ "$i" -lt 45 ]; do
   for u in /sys/class/block/mmcblk*p*/uevent; do
     [ -f "$u" ] || continue
     name="$(sed -n 's/^PARTNAME=//p' "$u" 2>/dev/null)"
-    [ "$name" = "userdata" ] || continue
+    [ "$name" = "super" ] || continue
     b="$(basename "$(dirname "$u")")"
     d="/dev/$b"
     if [ ! -b "$d" ]; then
@@ -32,10 +32,10 @@ while [ "$i" -lt 45 ]; do
   i=$((i + 1))
 done
 
-[ -n "$ROOTDEV" ] || { log "userdata partition not found"; exec /sbin/busybox sh; }
+[ -n "$ROOTDEV" ] || { log "super partition not found"; exec /sbin/busybox sh; }
 log "using root device $ROOTDEV"
-mount -t ext4 -o rw,noatime "$ROOTDEV" /newroot 2>/dev/null || { log "userdata ext4 mount failed"; exec /sbin/busybox sh; }
-[ -x /newroot/sbin/init ] || { log "postmarketOS init not found"; exec /sbin/busybox sh; }
+mount -t ext4 -o rw,noatime "$ROOTDEV" /newroot 2>/dev/null || { log "super ext4 mount failed"; exec /sbin/busybox sh; }
+[ -x /newroot/sbin/init ] || { log "postmarketOS init not found on super"; exec /sbin/busybox sh; }
 
 if [ -e /sys/fs/selinux/enforce ]; then
   echo 0 > /sys/fs/selinux/enforce 2>/dev/null || true
@@ -45,5 +45,5 @@ mkdir -p /newroot/dev /newroot/proc /newroot/sys /newroot/run
 mount --move /dev /newroot/dev 2>/dev/null || true
 mount --move /proc /newroot/proc 2>/dev/null || true
 mount --move /sys /newroot/sys 2>/dev/null || true
-log "switching to native postmarketOS"
+log "switching to native postmarketOS from super"
 exec /sbin/busybox switch_root -c /dev/console /newroot /sbin/init
