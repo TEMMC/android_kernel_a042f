@@ -80,7 +80,7 @@ jobs:
           sha256sum ../../work/compiled-kernel
           cd ../..
 
-      - name: Create USERDATA rootfs image
+      - name: Create SUPER rootfs image
         run: |
           set -eux
           truncate -s 6G out/A04e-postmarketOS-rootfs.img
