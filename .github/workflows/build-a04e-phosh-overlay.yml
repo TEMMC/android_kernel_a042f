@@ -1,4 +1,4 @@
-name: Build A04e Phosh mobile desktop overlay
+name: Build A04e Phosh mobile desktop compact overlay
 
 on:
   push:
@@ -31,15 +31,18 @@ jobs:
       - name: Configure ARM64 postmarketOS
         run: |
           set -eux
-          WORK="$RUNNER_TEMP/pmbootstrap-work"
-          APORTS="$WORK/cache_git/pmaports"
-          CONFIG="$RUNNER_TEMP/pmbootstrap-aarch64.cfg"
-          mkdir -p "$WORK/cache_git"
-          printf '%s\n' '8' > "$WORK/version"
-          cat > "$CONFIG" <<EOF
+          APORTS="$RUNNER_TEMP/pmaports"
+          git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmaports.git "$APORTS"
+
+          make_config() {
+            local config="$1"
+            local work="$2"
+            mkdir -p "$work"
+            printf '%s\n' '8' > "$work/version"
+            cat > "$config" <<EOF
           [pmbootstrap]
           aports = $APORTS
-          work = $WORK
+          work = $work
           device = qemu-aarch64
           kernel = stable
           user = root
@@ -57,54 +60,65 @@ jobs:
           [pmaports]
           supported_arches = aarch64
           EOF
-          git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmaports.git "$APORTS"
-          pmbootstrap -c "$CONFIG" -p "$APORTS" status
+          }
 
-      - name: Build base and Phosh tree with removable apps
+          make_config "$RUNNER_TEMP/pmbootstrap-base.cfg" "$RUNNER_TEMP/pmbootstrap-base-work"
+          make_config "$RUNNER_TEMP/pmbootstrap-phosh.cfg" "$RUNNER_TEMP/pmbootstrap-phosh-work"
+
+      - name: Build exact base and Phosh trees
         run: |
           set -eux
-          WORK="$RUNNER_TEMP/pmbootstrap-work"
-          APORTS="$WORK/cache_git/pmaports"
-          CONFIG="$RUNNER_TEMP/pmbootstrap-aarch64.cfg"
-          pmbootstrap -c "$CONFIG" -p "$APORTS" install --no-image --filesystem ext4 --password "pmos-test" --add "openssh,networkmanager,postmarketos-ui-phosh,postmarketos-ui-phosh-systemd,postmarketos-ui-phosh-default-osk,bluez,libinput,libinput-tools,evtest,gnome-console,firefox-esr,nautilus,file-roller,gnome-calculator,gnome-text-editor"
+          APORTS="$RUNNER_TEMP/pmaports"
+          BASE_WORK="$RUNNER_TEMP/pmbootstrap-base-work"
+          PHOSH_WORK="$RUNNER_TEMP/pmbootstrap-phosh-work"
+          BASE_CONFIG="$RUNNER_TEMP/pmbootstrap-base.cfg"
+          PHOSH_CONFIG="$RUNNER_TEMP/pmbootstrap-phosh.cfg"
 
-          BASE="$(find "$WORK" -maxdepth 1 -type d -name 'chroot_rootfs_qemu-aarch64' | head -n1)"
-          test -n "$BASE"
-          PHOSH="$BASE"
+          pmbootstrap -c "$BASE_CONFIG" -p "$APORTS" install --no-image --filesystem ext4 --password "pmos-test" --add "openssh,networkmanager"
+
+          pmbootstrap -c "$PHOSH_CONFIG" -p "$APORTS" install --no-image --filesystem ext4 --password "pmos-test" --add "openssh,networkmanager,postmarketos-ui-phosh,postmarketos-ui-phosh-systemd,postmarketos-ui-phosh-default-osk,bluez,libinput,libinput-tools,evtest,gnome-console,firefox-esr,nautilus,file-roller,gnome-calculator,gnome-text-editor"
+
+          BASE="$BASE_WORK/chroot_rootfs_qemu-aarch64"
+          PHOSH="$PHOSH_WORK/chroot_rootfs_qemu-aarch64"
+          test -d "$BASE"
+          test -d "$PHOSH"
 
           sudo chroot "$PHOSH" /bin/sh -c 'echo "root:pmos-test" | chpasswd; passwd -u root || true'
 
           for p in postmarketos-ui-phosh postmarketos-ui-phosh-systemd postmarketos-ui-phosh-default-osk networkmanager bluez libinput libinput-tools evtest gnome-console firefox-esr nautilus file-roller gnome-calculator gnome-text-editor; do
             sudo chroot "$PHOSH" /bin/sh -c "apk info -e $p"
           done
-          sudo chroot "$PHOSH" /bin/sh -c 'command -v phosh-session || true'
+          sudo chroot "$PHOSH" /bin/sh -c 'command -v phosh-session'
           test -f "$PHOSH/etc/os-release"
           test -d "$PHOSH/lib/apk/db"
 
-      - name: Create Phosh overlay
+      - name: Create compact Phosh delta overlay
         run: |
           set -eux
-          WORK="$RUNNER_TEMP/pmbootstrap-work"
-          BASE="$WORK/chroot_rootfs_qemu-aarch64"
+          BASE="$RUNNER_TEMP/pmbootstrap-base-work/chroot_rootfs_qemu-aarch64"
+          PHOSH="$RUNNER_TEMP/pmbootstrap-phosh-work/chroot_rootfs_qemu-aarch64"
           OVERLAY="$RUNNER_TEMP/phosh-overlay"
           rm -rf "$OVERLAY"
-          mkdir -p "$OVERLAY"
+          sudo mkdir -p "$OVERLAY"
 
-          sudo rsync -aHAX --numeric-ids --exclude='/proc/***' --exclude='/sys/***' --exclude='/dev/***' --exclude='/run/***' "$BASE"/ "$OVERLAY"/
+          sudo rsync -aHAX --numeric-ids --compare-dest="$BASE"             --exclude='/proc/***'             --exclude='/sys/***'             --exclude='/dev/***'             --exclude='/run/***'             --exclude='/var/cache/***'             --exclude='/var/log/***'             --exclude='/tmp/***'             "$PHOSH"/ "$OVERLAY"/
 
-          sudo rm -rf "$OVERLAY/proc" "$OVERLAY/sys" "$OVERLAY/dev" "$OVERLAY/run"
           sudo mkdir -p "$OVERLAY/proc" "$OVERLAY/sys" "$OVERLAY/dev" "$OVERLAY/run"
 
-          sudo mkdir -p out
-          sudo tar -C "$OVERLAY" -cJf out/A04e-phosh-mobile-desktop-overlay.tar.xz .
-          sudo chown "$USER":"$USER" out/A04e-phosh-mobile-desktop-overlay.tar.xz
-          sha256sum out/A04e-phosh-mobile-desktop-overlay.tar.xz
-          du -h out/A04e-phosh-mobile-desktop-overlay.tar.xz
+          test -f "$OVERLAY/etc/apk/world"
+          test -f "$OVERLAY/etc/shadow"
+          test -e "$OVERLAY/usr/bin/phosh-session" -o -e "$OVERLAY/usr/bin/phosh"
 
-      - name: Upload Phosh overlay
+          sudo mkdir -p out
+          sudo tar -C "$OVERLAY" -cJf out/A04e-phosh-mobile-desktop-compact-overlay.tar.xz .
+          sudo chown "$USER":"$USER" out/A04e-phosh-mobile-desktop-compact-overlay.tar.xz
+          sha256sum out/A04e-phosh-mobile-desktop-compact-overlay.tar.xz
+          du -h out/A04e-phosh-mobile-desktop-compact-overlay.tar.xz
+
+      - name: Upload compact Phosh overlay
         uses: actions/upload-artifact@v4
         with:
-          name: A04e-Phosh-mobile-desktop-overlay
-          path: out/A04e-phosh-mobile-desktop-overlay.tar.xz
+          name: A04e-Phosh-mobile-desktop-compact-overlay
+          path: out/A04e-phosh-mobile-desktop-compact-overlay.tar.xz
           if-no-files-found: error
           retention-days: 30
