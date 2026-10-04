@@ -66,22 +66,14 @@ jobs:
           WORK="$RUNNER_TEMP/pmbootstrap-work"
           APORTS="$WORK/cache_git/pmaports"
           CONFIG="$RUNNER_TEMP/pmbootstrap-aarch64.cfg"
-          pmbootstrap -c "$CONFIG" -p "$APORTS" install --no-image --filesystem ext4 --password "pmos-test" --add "openssh,networkmanager"
+          pmbootstrap -c "$CONFIG" -p "$APORTS" install --no-image --filesystem ext4 --password "pmos-test" --add "openssh,networkmanager,postmarketos-ui-phosh,postmarketos-ui-phosh-systemd,postmarketos-ui-phosh-default-osk,bluez,libinput,libinput-tools,evtest,gnome-console,firefox-esr,nautilus,file-roller,gnome-calculator,gnome-text-editor"
 
           BASE="$(find "$WORK" -maxdepth 1 -type d -name 'chroot_rootfs_qemu-aarch64' | head -n1)"
           test -n "$BASE"
-          cp -a "$BASE" "$WORK/chroot_rootfs_qemu-aarch64-phosh"
-          PHOSH="$WORK/chroot_rootfs_qemu-aarch64-phosh"
-
-          # Existing postmarketOS mobile UI packages; nothing is built from scratch.
-          sudo chroot "$PHOSH" /bin/sh -c 'apk add --no-cache postmarketos-ui-phosh postmarketos-ui-phosh-systemd postmarketos-ui-phosh-default-osk'
-
-          # Preinstalled, ordinary APK packages. They remain removable later with apk.
-          sudo chroot "$PHOSH" /bin/sh -c 'apk add --no-cache networkmanager bluez libinput libinput-tools evtest gnome-console firefox-esr nautilus file-roller gnome-calculator gnome-text-editor'
+          PHOSH="$BASE"
 
           sudo chroot "$PHOSH" /bin/sh -c 'echo "root:pmos-test" | chpasswd; passwd -u root || true'
 
-          # Verify desktop and app packages.
           for p in postmarketos-ui-phosh postmarketos-ui-phosh-systemd postmarketos-ui-phosh-default-osk networkmanager bluez libinput libinput-tools evtest gnome-console firefox-esr nautilus file-roller gnome-calculator gnome-text-editor; do
             sudo chroot "$PHOSH" /bin/sh -c "apk info -e $p"
           done
@@ -94,12 +86,11 @@ jobs:
           set -eux
           WORK="$RUNNER_TEMP/pmbootstrap-work"
           BASE="$WORK/chroot_rootfs_qemu-aarch64"
-          PHOSH="$WORK/chroot_rootfs_qemu-aarch64-phosh"
           OVERLAY="$RUNNER_TEMP/phosh-overlay"
           rm -rf "$OVERLAY"
           mkdir -p "$OVERLAY"
 
-          sudo rsync -aHAX --numeric-ids             --exclude='/proc/***' --exclude='/sys/***' --exclude='/dev/***' --exclude='/run/***'             --compare-dest="$BASE" "$PHOSH"/ "$OVERLAY"/
+          sudo rsync -aHAX --numeric-ids --exclude='/proc/***' --exclude='/sys/***' --exclude='/dev/***' --exclude='/run/***' "$BASE"/ "$OVERLAY"/
 
           sudo rm -rf "$OVERLAY/proc" "$OVERLAY/sys" "$OVERLAY/dev" "$OVERLAY/run"
           sudo mkdir -p "$OVERLAY/proc" "$OVERLAY/sys" "$OVERLAY/dev" "$OVERLAY/run"
