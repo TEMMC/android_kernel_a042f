@@ -1,6 +1,9 @@
 name: Build A04e Phosh mobile desktop overlay
 
 on:
+  push:
+    branches:
+      - a04e
   workflow_dispatch:
 
 jobs:
@@ -110,10 +113,6 @@ jobs:
 
           sudo rm -rf "$OVERLAY/proc" "$OVERLAY/sys" "$OVERLAY/dev" "$OVERLAY/run"
           sudo mkdir -p "$OVERLAY/proc" "$OVERLAY/sys" "$OVERLAY/dev" "$OVERLAY/run"
-
-          # Package database changes are essential: the overlay must carry the
-          # installed Phosh package state into the existing rootfs.
-          test -d "$OVERLAY/lib/apk/db" || true
 
           sudo mkdir -p out
           sudo tar -C "$OVERLAY" -cJf out/A04e-phosh-mobile-desktop-overlay.tar.xz .
