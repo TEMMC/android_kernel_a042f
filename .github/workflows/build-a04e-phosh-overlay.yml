@@ -1,0 +1,131 @@
+name: Build A04e Phosh mobile desktop overlay
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-phosh-overlay:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout A04e source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git python3 python3-pip python3-venv openssl \
+            procps psmisc tar xz-utils zstd kpartx util-linux \
+            e2fsprogs qemu-user-static binfmt-support rsync
+
+      - name: Install current pmbootstrap
+        run: |
+          git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmbootstrap.git "$RUNNER_TEMP/pmbootstrap"
+          mkdir -p "$HOME/.local/bin"
+          ln -sf "$RUNNER_TEMP/pmbootstrap/pmbootstrap.py" "$HOME/.local/bin/pmbootstrap"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          pmbootstrap --version
+
+      - name: Configure ARM64 postmarketOS
+        run: |
+          set -eux
+          WORK="$RUNNER_TEMP/pmbootstrap-work"
+          APORTS="$WORK/cache_git/pmaports"
+          CONFIG="$RUNNER_TEMP/pmbootstrap-aarch64.cfg"
+          mkdir -p "$WORK/cache_git"
+          printf '%s\n' '8' > "$WORK/version"
+
+          cat > "$CONFIG" <<EOF
+          [pmbootstrap]
+          aports = $APORTS
+          work = $WORK
+          device = qemu-aarch64
+          kernel = stable
+          user = root
+          ui = console
+          extra_packages = none
+          build_pkgs_on_install = False
+          is_default_channel = False
+          locale = en_US.UTF-8
+          mirror_alpine = http://dl-cdn.alpinelinux.org/alpine/
+          mirrors_postmarketOS = http://mirror.postmarketos.org/postmarketos/
+          nonfree_firmware = False
+          nonfree_userland = False
+          ssh_keys = False
+          [providers]
+          [pmaports]
+          supported_arches = aarch64
+          EOF
+
+          git clone --depth=1 https://gitlab.postmarketOS.org/postmarketOS/pmaports.git "$APORTS"
+          pmbootstrap -c "$CONFIG" -p "$APORTS" status
+
+      - name: Build base and Phosh rootfs trees
+        run: |
+          set -eux
+          WORK="$RUNNER_TEMP/pmbootstrap-work"
+          APORTS="$WORK/cache_git/pmaports"
+          CONFIG="$RUNNER_TEMP/pmbootstrap-aarch64.cfg"
+
+          pmbootstrap -c "$CONFIG" -p "$APORTS" install \
+            --no-image \
+            --filesystem ext4 \
+            --password "pmos-test" \
+            --add "openssh,networkmanager"
+
+          BASE="$(find "$WORK" -maxdepth 1 -type d -name 'chroot_rootfs_qemu-aarch64' | head -n1)"
+          test -n "$BASE"
+
+          cp -a "$BASE" "$WORK/chroot_rootfs_qemu-aarch64-phosh"
+
+          PHOSH="$WORK/chroot_rootfs_qemu-aarch64-phosh"
+          sudo chroot "$PHOSH" /bin/sh -c \
+            'apk add --no-cache postmarketos-ui-phosh postmarketos-ui-phosh-default-osk || apk add --no-cache postmarketos-ui-phosh'
+
+          sudo chroot "$PHOSH" /bin/sh -c 'echo "root:pmos-test" | chpasswd; passwd -u root || true'
+
+          sudo mkdir -p "$BASE/proc" "$BASE/sys" "$BASE/dev" "$BASE/run"
+          sudo mkdir -p "$PHOSH/proc" "$PHOSH/sys" "$PHOSH/dev" "$PHOSH/run"
+
+      - name: Create Phosh overlay
+        run: |
+          set -eux
+          WORK="$RUNNER_TEMP/pmbootstrap-work"
+          BASE="$WORK/chroot_rootfs_qemu-aarch64"
+          PHOSH="$WORK/chroot_rootfs_qemu-aarch64-phosh"
+          OVERLAY="$RUNNER_TEMP/phosh-overlay"
+
+          rm -rf "$OVERLAY"
+          mkdir -p "$OVERLAY"
+
+          sudo rsync -aHAX --numeric-ids \
+            --exclude='/proc/***' \
+            --exclude='/sys/***' \
+            --exclude='/dev/***' \
+            --exclude='/run/***' \
+            --compare-dest="$BASE" \
+            "$PHOSH"/ "$OVERLAY"/
+
+          sudo rm -rf "$OVERLAY/proc" "$OVERLAY/sys" "$OVERLAY/dev" "$OVERLAY/run"
+          sudo mkdir -p "$OVERLAY/proc" "$OVERLAY/sys" "$OVERLAY/dev" "$OVERLAY/run"
+
+          # Package database changes are essential: the overlay must carry the
+          # installed Phosh package state into the existing rootfs.
+          test -d "$OVERLAY/lib/apk/db" || true
+
+          sudo mkdir -p out
+          sudo tar -C "$OVERLAY" -cJf out/A04e-phosh-mobile-desktop-overlay.tar.xz .
+          sudo chown "$USER":"$USER" out/A04e-phosh-mobile-desktop-overlay.tar.xz
+
+          sha256sum out/A04e-phosh-mobile-desktop-overlay.tar.xz
+          du -h out/A04e-phosh-mobile-desktop-overlay.tar.xz
+
+      - name: Upload Phosh overlay
+        uses: actions/upload-artifact@v4
+        with:
+          name: A04e-Phosh-mobile-desktop-overlay
+          path: out/A04e-phosh-mobile-desktop-overlay.tar.xz
+          if-no-files-found: error
+          retention-days: 30
