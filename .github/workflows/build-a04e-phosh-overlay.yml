@@ -77,12 +77,12 @@ jobs:
           sudo chroot "$PHOSH" /bin/sh -c 'apk add --no-cache postmarketos-ui-phosh postmarketos-ui-phosh-systemd postmarketos-ui-phosh-default-osk'
 
           # Preinstalled, ordinary APK packages. They remain removable later with apk.
-          sudo chroot "$PHOSH" /bin/sh -c 'apk add --no-cache networkmanager bluez gnome-console firefox-esr nautilus file-roller gnome-calculator gnome-text-editor'
+          sudo chroot "$PHOSH" /bin/sh -c 'apk add --no-cache networkmanager bluez libinput libinput-tools evtest gnome-console firefox-esr nautilus file-roller gnome-calculator gnome-text-editor'
 
           sudo chroot "$PHOSH" /bin/sh -c 'echo "root:pmos-test" | chpasswd; passwd -u root || true'
 
           # Verify desktop and app packages.
-          for p in postmarketos-ui-phosh postmarketos-ui-phosh-systemd postmarketos-ui-phosh-default-osk networkmanager bluez gnome-console firefox-esr nautilus file-roller gnome-calculator gnome-text-editor; do
+          for p in postmarketos-ui-phosh postmarketos-ui-phosh-systemd postmarketos-ui-phosh-default-osk networkmanager bluez libinput libinput-tools evtest gnome-console firefox-esr nautilus file-roller gnome-calculator gnome-text-editor; do
             sudo chroot "$PHOSH" /bin/sh -c "apk info -e $p"
           done
           sudo chroot "$PHOSH" /bin/sh -c 'command -v phosh-session || true'
