@@ -82,15 +82,21 @@ jobs:
           test -n "$BASE"
 
           cp -a "$BASE" "$WORK/chroot_rootfs_qemu-aarch64-phosh"
-
           PHOSH="$WORK/chroot_rootfs_qemu-aarch64-phosh"
+
+          # Use the existing postmarketOS Phosh packages, including the
+          # systemd integration and default on-screen keyboard.
           sudo chroot "$PHOSH" /bin/sh -c \
-            'apk add --no-cache postmarketos-ui-phosh postmarketos-ui-phosh-default-osk || apk add --no-cache postmarketos-ui-phosh'
+            'apk add --no-cache postmarketos-ui-phosh postmarketos-ui-phosh-systemd postmarketos-ui-phosh-default-osk'
 
           sudo chroot "$PHOSH" /bin/sh -c 'echo "root:pmos-test" | chpasswd; passwd -u root || true'
 
-          sudo mkdir -p "$BASE/proc" "$BASE/sys" "$BASE/dev" "$BASE/run"
-          sudo mkdir -p "$PHOSH/proc" "$PHOSH/sys" "$PHOSH/dev" "$PHOSH/run"
+          # Verify the actual mobile session and OSK packages were installed.
+          sudo chroot "$PHOSH" /bin/sh -c 'apk info -e postmarketos-ui-phosh'
+          sudo chroot "$PHOSH" /bin/sh -c 'apk info -e postmarketos-ui-phosh-systemd'
+          sudo chroot "$PHOSH" /bin/sh -c 'apk info -e postmarketos-ui-phosh-default-osk'
+          sudo chroot "$PHOSH" /bin/sh -c 'command -v phosh-session || true'
+          test -f "$PHOSH/etc/os-release"
 
       - name: Create Phosh overlay
         run: |
@@ -113,6 +119,10 @@ jobs:
 
           sudo rm -rf "$OVERLAY/proc" "$OVERLAY/sys" "$OVERLAY/dev" "$OVERLAY/run"
           sudo mkdir -p "$OVERLAY/proc" "$OVERLAY/sys" "$OVERLAY/dev" "$OVERLAY/run"
+
+          # Keep the package database changes so the desktop remains a normal
+          # installed postmarketOS UI and can be removed/replaced later.
+          test -d "$PHOSH/lib/apk/db"
 
           sudo mkdir -p out
           sudo tar -C "$OVERLAY" -cJf out/A04e-phosh-mobile-desktop-overlay.tar.xz .
