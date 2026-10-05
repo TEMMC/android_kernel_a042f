@@ -1,0 +1,120 @@
+name: Combine A04e rootfs with Phosh
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  combine:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install image tools
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y curl jq unzip xz-utils e2fsprogs rsync android-sdk-libsparse-utils
+
+      - name: Download A04e-postmarketOS-rootfs.img
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eux
+          ARTIFACT_ID=11286707606
+          curl -fL             -H "Authorization: Bearer $GH_TOKEN"             -H "Accept: application/vnd.github+json"             -o rootfs-artifact.zip             "https://api.github.com/repos/TEMMC/android_kernel_a042f/actions/artifacts/$ARTIFACT_ID/zip"
+          unzip -q rootfs-artifact.zip -d rootfs-download
+          ROOTFS_XZ="$(find rootfs-download -type f -name 'A04e-postmarketOS-rootfs.img.xz' -o -name '*.img.xz' | head -n1)"
+          test -s "$ROOTFS_XZ"
+          xz -t "$ROOTFS_XZ"
+          xz -dc "$ROOTFS_XZ" > A04e-postmarketOS-rootfs.img
+          test -s A04e-postmarketOS-rootfs.img
+          file A04e-postmarketOS-rootfs.img
+
+      - name: Download Phosh overlay
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eux
+          ARTIFACT_ID=11292743780
+          curl -fL             -H "Authorization: Bearer $GH_TOKEN"             -H "Accept: application/vnd.github+json"             -o phosh-artifact.zip             "https://api.github.com/repos/TEMMC/android_kernel_a042f/actions/artifacts/$ARTIFACT_ID/zip"
+          unzip -q phosh-artifact.zip -d phosh-download
+          OVERLAY="$(find phosh-download -type f -name 'A04e-phosh-mobile-desktop-compact-overlay.tar.xz' | head -n1)"
+          test -s "$OVERLAY"
+          xz -t "$OVERLAY"
+          cp "$OVERLAY" phosh-overlay.tar.xz
+
+      - name: Apply Phosh overlay to rootfs image
+        run: |
+          set -eux
+          sudo mkdir -p /mnt/a04e-rootfs
+          sudo e2fsck -fy A04e-postmarketOS-rootfs.img
+          sudo mount -o loop,rw A04e-postmarketOS-rootfs.img /mnt/a04e-rootfs
+
+          sudo tar -xJf phosh-overlay.tar.xz -C /mnt/a04e-rootfs
+
+          test -f /mnt/a04e-rootfs/etc/apk/world
+          test -e /mnt/a04e-rootfs/usr/bin/phosh-session -o -e /mnt/a04e-rootfs/usr/bin/phosh
+          test -x /mnt/a04e-rootfs/sbin/init
+
+          sync
+          sudo umount /mnt/a04e-rootfs
+
+      - name: Zero unused filesystem space and shrink safely
+        run: |
+          set -eux
+          sudo e2fsck -fy A04e-postmarketOS-rootfs.img
+
+          sudo mkdir -p /mnt/a04e-rootfs
+          sudo mount -o loop,rw A04e-postmarketOS-rootfs.img /mnt/a04e-rootfs
+
+          sudo sh -c 'dd if=/dev/zero of=/mnt/a04e-rootfs/.zero-fill bs=64M status=none || true'
+          sudo rm -f /mnt/a04e-rootfs/.zero-fill
+          sync
+
+          sudo umount /mnt/a04e-rootfs
+          sudo e2fsck -fy A04e-postmarketOS-rootfs.img
+          sudo resize2fs -M A04e-postmarketOS-rootfs.img
+          sudo e2fsck -fy A04e-postmarketOS-rootfs.img
+
+          BLOCKS="$(sudo dumpe2fs -h A04e-postmarketOS-rootfs.img 2>/dev/null | awk -F: '/Block count:/ {gsub(/ /,"",$2); print $2}')"
+          BLOCK_SIZE="$(sudo dumpe2fs -h A04e-postmarketOS-rootfs.img 2>/dev/null | awk -F: '/Block size:/ {gsub(/ /,"",$2); print $2}')"
+          test -n "$BLOCKS"
+          test -n "$BLOCK_SIZE"
+          SIZE=$((BLOCKS * BLOCK_SIZE))
+          echo "Minimum filesystem image size: $SIZE bytes"
+          truncate -s "$SIZE" A04e-postmarketOS-rootfs.img
+          sudo e2fsck -fy A04e-postmarketOS-rootfs.img
+
+      - name: Create sparse and compressed images
+        run: |
+          set -eux
+          mkdir -p out
+
+          cp --sparse=always A04e-postmarketOS-rootfs.img out/A04e-postmarketOS-rootfs.img
+          img2simg A04e-postmarketOS-rootfs.img out/A04e-postmarketOS-rootfs-sparse.img
+
+          xz -T0 -9 -c out/A04e-postmarketOS-rootfs.img > out/A04e-postmarketOS-rootfs.img.xz
+          xz -T0 -9 -c out/A04e-postmarketOS-rootfs-sparse.img > out/A04e-postmarketOS-rootfs-sparse.img.xz
+
+          xz -t out/A04e-postmarketOS-rootfs.img.xz
+          xz -t out/A04e-postmarketOS-rootfs-sparse.img.xz
+
+          sha256sum out/* > out/SHA256SUMS
+          ls -lh out/
+          cat out/SHA256SUMS
+
+      - name: Upload combined Phosh rootfs
+        uses: actions/upload-artifact@v4
+        with:
+          name: A04e-postmarketOS-Phosh-rootfs-combined
+          path: |
+            out/A04e-postmarketOS-rootfs.img
+            out/A04e-postmarketOS-rootfs-sparse.img
+            out/A04e-postmarketOS-rootfs.img.xz
+            out/A04e-postmarketOS-rootfs-sparse.img.xz
+            out/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
