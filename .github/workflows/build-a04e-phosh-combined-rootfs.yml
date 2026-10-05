@@ -1,0 +1,75 @@
+name: Build combined A04e Phosh rootfs image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  combine-rootfs-phosh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download base rootfs artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: postmarketOS-A04e-ARM64-rootfs
+          path: input/rootfs
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: 36780980647
+
+      - name: Download compact Phosh overlay artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: A04e-Phosh-mobile-desktop-compact-overlay
+          path: input/phosh
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: 37174598374
+
+      - name: Install image tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y e2fsprogs xz-utils rsync
+
+      - name: Build combined 6 GiB ext4 image
+        run: |
+          set -eux
+          ROOT_TAR=$(find input/rootfs -type f -name '*.tar.xz' | head -n1)
+          PHOSH_TAR=$(find input/phosh -type f -name '*.tar.xz' | head -n1)
+          test -n "$ROOT_TAR"
+          test -n "$PHOSH_TAR"
+
+          mkdir -p work/rootfs work/phosh out
+          tar -xJf "$ROOT_TAR" -C work/rootfs
+          tar -xJf "$PHOSH_TAR" -C work/phosh
+
+          # Apply the Phosh delta over the base rootfs.
+          sudo rsync -aHAX --numeric-ids work/phosh/ work/rootfs/
+
+          # Remove transient runtime trees; initramfs recreates/mounts these.
+          sudo rm -rf work/rootfs/proc/* work/rootfs/sys/* work/rootfs/dev/* work/rootfs/run/*
+          sudo mkdir -p work/rootfs/proc work/rootfs/sys work/rootfs/dev work/rootfs/run
+
+          # 6 GiB image fits inside the A04e super partition (~6.32 GiB).
+          truncate -s 6G out/A04e-postmarketOS-Phosh-rootfs.img
+          mkfs.ext4 -F -L PMOSROOT out/A04e-postmarketOS-Phosh-rootfs.img
+
+          sudo mount -o loop out/A04e-postmarketOS-Phosh-rootfs.img /mnt
+          sudo rsync -aHAX --numeric-ids work/rootfs/ /mnt/
+          sync
+          sudo umount /mnt
+
+          e2fsck -fn out/A04e-postmarketOS-Phosh-rootfs.img
+          sha256sum out/A04e-postmarketOS-Phosh-rootfs.img
+          ls -lh out/A04e-postmarketOS-Phosh-rootfs.img
+
+      - name: Upload combined rootfs image
+        uses: actions/upload-artifact@v4
+        with:
+          name: A04e-postmarketOS-Phosh-rootfs-combined
+          path: out/A04e-postmarketOS-Phosh-rootfs.img
+          if-no-files-found: error
+          retention-days: 30
