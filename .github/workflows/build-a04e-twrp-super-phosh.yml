@@ -23,7 +23,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y             clang g++ make git curl unzip zip tar lz4 e2fsprogs cpio             python3 python3-pip
+          sudo apt-get install -y             clang g++ make git curl unzip zip tar lz4 e2fsprogs cpio cargo             python3 python3-pip
 
       - name: Build LP tools
         run: |
@@ -132,7 +132,7 @@ jobs:
         shell: bash
         run: |
           set -eux
-          curl -L --fail             https://github.com/topjohnwu/Magisk/releases/download/v30.7/Magisk-v30.7.apk             -o Magisk-v30.7.apk
+          curl -L --fail https://github.com/topjohnwu/Magisk/releases/download/v30.7/Magisk-v30.7.apk -o Magisk-v30.7.apk
           unzip -p Magisk-v30.7.apk lib/x86_64/libmagiskboot.so > magiskboot
           chmod +x magiskboot
           rm -f Magisk-v30.7.apk
@@ -141,15 +141,18 @@ jobs:
           cp stock-boot.img bootwork/boot.img
           cd bootwork
           ../magiskboot unpack -h boot.img
-          mkdir ramdisk
-          cd ramdisk
-          ../magiskboot cpio ../ramdisk.cpio extract
 
-          FSTAB="$(find . -type f -name 'fstab*' -print | head -n1)"
+          FSTAB="$(
+            ../magiskboot cpio ramdisk.cpio ls -r / |
+            awk '{print $NF}' |
+            grep -E '(^|/)fstab([.A-Za-z0-9_-]+)?$' |
+            head -n1
+          )"
           test -n "$FSTAB"
-          cp "$FSTAB" "$FSTAB.stock"
+          echo "Using fstab: $FSTAB"
 
-          python3 - "$FSTAB" <<'PY'
+          ../magiskboot cpio ramdisk.cpio "extract $FSTAB fstab-edit"
+          python3 - fstab-edit <<'PY'
           import sys
           p = sys.argv[1]
           lines = open(p, encoding='utf-8', errors='replace').read().splitlines()
@@ -169,20 +172,24 @@ jobs:
                       continue
                   if mp in ('/product', '/system_ext', '/odm'):
                       continue
-                  if mp == '/vendor':
-                      # Keep the stock vendor mount, including its AVB declaration.
-                      out.append(line)
-                      continue
               out.append(line)
           if not replaced:
               out.append('pmos_root /system ext4 rw,barrier=1 wait,logical,first_stage_mount')
           open(p, 'w', encoding='utf-8').write('\n'.join(out) + '\n')
           PY
 
-          grep -nE 'pmos_root|/system|/vendor|/product|/system_ext|/odm' "$FSTAB"
+          grep -nE 'pmos_root|/system|/vendor|/product|/system_ext|/odm' fstab-edit
+          ../magiskboot cpio ramdisk.cpio "add 0644 $FSTAB fstab-edit"
 
-          cd ..
-          ../magiskboot cpio ramdisk.cpio pack
+          cat > init-wrapper <<'EOF'
+          #!/bin/sh
+          exec /sbin/init
+          EOF
+          ../magiskboot cpio ramdisk.cpio "mkdir 0755 system"
+          ../magiskboot cpio ramdisk.cpio "mkdir 0755 system/bin"
+          ../magiskboot cpio ramdisk.cpio "add 0755 system/bin/init init-wrapper"
+
+          ../magiskboot cpio ramdisk.cpio test
           ../magiskboot repack boot.img ../A04e-postmarketOS-boot.img
 
           cd ..
@@ -202,7 +209,7 @@ jobs:
           # Vendor is preserved from the exact A042FXXSGEZF2 AP.
           # The remaining group capacity is given to the minimized pmOS root.
           VENDOR_ALIGNED=$(( (VENDOR_SIZE + ALIGN - 1) / ALIGN * ALIGN ))
-          ROOT_ALIGNED=$(( (ROOTFS_SIZE + ALIGN - 1) / ALIGN * ALIGN ))
+          ROOT_ALIGNED=$(( (ROOT_SIZE + ALIGN - 1) / ALIGN * ALIGN ))
           USED=$((VENDOR_ALIGNED + ROOT_ALIGNED))
           if [ "$USED" -gt "$GROUP_SIZE" ]; then
             echo "lpmake inputs exceed main group"
