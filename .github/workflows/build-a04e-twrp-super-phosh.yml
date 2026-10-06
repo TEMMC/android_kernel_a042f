@@ -1,0 +1,238 @@
+name: Build A04e TWRP Super + Native pmOS Boot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+
+    steps:
+      - name: Free runner disk
+        shell: bash
+        run: |
+          set -eux
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc             /usr/local/share/powershell /usr/local/share/chromium             /opt/hostedtoolcache/CodeQL || true
+          df -h /
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y             clang g++ make git curl unzip zip tar lz4 e2fsprogs cpio             python3 python3-pip
+
+      - name: Build LP tools
+        run: |
+          set -eux
+          git clone --depth=1 https://github.com/itsNileshHere/android-lptools.git lptools
+          cd lptools
+          chmod +x make.sh
+          ./make.sh
+          test -x bin/lpmake
+          test -x bin/lpunpack
+          test -x bin/lpdump
+
+      - name: Download exact stock A04e firmware
+        run: |
+          set -eux
+          cargo install samloader --version 2.2.0 --locked
+          samloader --model SM-A042F --region XFE download             --version A042FXXSGEZF2/A042FOJMGEZF2/A042FXXSGEZF2/A042FXXSGEZF2             --threads 8 --out-file A04e-stock.zip
+          unzip -t A04e-stock.zip >/dev/null
+
+      - name: Extract only stock super and boot
+        run: |
+          set -eux
+          AP_NAME="$(unzip -Z1 A04e-stock.zip | grep '^AP_.*\.tar\.md5$' | head -n1)"
+          test -n "$AP_NAME"
+          echo "AP=$AP_NAME"
+
+          unzip -p A04e-stock.zip "$AP_NAME" |
+            tar -xOf - super.img.lz4 > stock-super.img.lz4
+
+          unzip -p A04e-stock.zip "$AP_NAME" |
+            tar -xOf - boot.img.lz4 > boot.img.lz4
+
+          lz4 -d -f stock-super.img.lz4 stock-super.img
+          lz4 -d -f boot.img.lz4 stock-boot.img
+
+          rm -f A04e-stock.zip AP_*.tar.md5 stock-super.img.lz4 boot.img.lz4
+          ./lptools/bin/lpdump stock-super.img > stock-super-lpdump.txt
+          grep -E 'Metadata version|Metadata max size|Metadata slot count|Size: 6786383872|Maximum size: 6782189568' stock-super-lpdump.txt
+
+      - name: Extract stock vendor then discard stock super
+        run: |
+          set -eux
+          mkdir -p stock_parts
+          ./lptools/bin/lpunpack stock-super.img stock_parts
+          test -f stock_parts/vendor.img
+          cp stock_parts/vendor.img vendor.img
+          rm -f stock-super.img
+          rm -rf stock_parts
+          df -h /
+
+      - name: Download known-good 1.11 GB combined pmOS + Phosh artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: A04e-postmarketOS-Phosh-rootfs-combined
+          path: rootfs-artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: 37328448539
+
+      - name: Prepare pmOS root filesystem
+        shell: bash
+        run: |
+          set -eux
+          ROOTFS="$(find rootfs-artifact -type f -name '*.img' | head -n1)"
+          test -n "$ROOTFS"
+          cp "$ROOTFS" pmos_root.img
+
+          sudo e2fsck -fy pmos_root.img
+
+          sudo mkdir -p /mnt/pmos
+          sudo mount -o loop,rw pmos_root.img /mnt/pmos
+
+          test -x /mnt/pmos/sbin/init
+          test -x /mnt/pmos/bin/sh || test -x /mnt/pmos/usr/bin/sh
+
+          sudo mkdir -p /mnt/pmos/system/bin
+          sudo tee /mnt/pmos/system/bin/init >/dev/null <<'EOF'
+          #!/bin/sh
+          exec /sbin/init
+          EOF
+          sudo chmod 0755 /mnt/pmos/system/bin/init
+
+          sudo rm -rf /mnt/pmos/proc/* /mnt/pmos/sys/* /mnt/pmos/dev/* /mnt/pmos/run/* || true
+          sudo umount /mnt/pmos
+
+          sudo e2fsck -fy pmos_root.img
+          sudo resize2fs -M pmos_root.img
+          sudo e2fsck -fy pmos_root.img
+
+          ROOT_SIZE="$(stat -c '%s' pmos_root.img)"
+          VENDOR_SIZE="$(stat -c '%s' vendor.img)"
+          GROUP_SIZE=6782189568
+          if [ "$((ROOT_SIZE + VENDOR_SIZE + 2097152))" -gt "$GROUP_SIZE" ]; then
+            echo "ERROR: minimized pmOS rootfs is too large for the stock main group"
+            echo "root=$ROOT_SIZE vendor=$VENDOR_SIZE group=$GROUP_SIZE"
+            exit 1
+          fi
+
+          echo "ROOT_SIZE=$ROOT_SIZE" >> "$GITHUB_ENV"
+          echo "VENDOR_SIZE=$VENDOR_SIZE" >> "$GITHUB_ENV"
+          echo "PMOS_ROOT_SIZE=$ROOT_SIZE"
+          echo "VENDOR_SIZE=$VENDOR_SIZE"
+          df -h /
+
+      - name: Patch stock boot ramdisk for pmOS system-as-root
+        shell: bash
+        run: |
+          set -eux
+          curl -L --fail             https://github.com/topjohnwu/Magisk/releases/download/v30.7/Magisk-v30.7.apk             -o Magisk-v30.7.apk
+          unzip -p Magisk-v30.7.apk lib/x86_64/libmagiskboot.so > magiskboot
+          chmod +x magiskboot
+          rm -f Magisk-v30.7.apk
+
+          mkdir -p bootwork
+          cp stock-boot.img bootwork/boot.img
+          cd bootwork
+          ../magiskboot unpack -h boot.img
+          mkdir ramdisk
+          cd ramdisk
+          ../magiskboot cpio ../ramdisk.cpio extract
+
+          FSTAB="$(find . -type f -name 'fstab*' -print | head -n1)"
+          test -n "$FSTAB"
+          cp "$FSTAB" "$FSTAB.stock"
+
+          python3 - "$FSTAB" <<'PY'
+          import sys
+          p = sys.argv[1]
+          lines = open(p, encoding='utf-8', errors='replace').read().splitlines()
+          out = []
+          replaced = False
+          for line in lines:
+              s = line.strip()
+              if not s or s.startswith('#'):
+                  out.append(line)
+                  continue
+              f = s.split()
+              if len(f) >= 5:
+                  mp = f[1]
+                  if mp == '/system':
+                      out.append('pmos_root /system ext4 rw,barrier=1 wait,logical,first_stage_mount')
+                      replaced = True
+                      continue
+                  if mp in ('/product', '/system_ext', '/odm'):
+                      continue
+                  if mp == '/vendor':
+                      # Keep the stock vendor mount, including its AVB declaration.
+                      out.append(line)
+                      continue
+              out.append(line)
+          if not replaced:
+              out.append('pmos_root /system ext4 rw,barrier=1 wait,logical,first_stage_mount')
+          open(p, 'w', encoding='utf-8').write('\n'.join(out) + '\n')
+          PY
+
+          grep -nE 'pmos_root|/system|/vendor|/product|/system_ext|/odm' "$FSTAB"
+
+          cd ..
+          ../magiskboot cpio ramdisk.cpio pack
+          ../magiskboot repack boot.img ../A04e-postmarketOS-boot.img
+
+          cd ..
+          test -f A04e-postmarketOS-boot.img
+          test "$(stat -c '%s' A04e-postmarketOS-boot.img)" -le 33554432
+
+      - name: Build exact stock-size dynamic super image
+        shell: bash
+        run: |
+          set -eux
+          SUPER_SIZE=6786383872
+          GROUP_SIZE=6782189568
+          METADATA_SIZE=65536
+          METADATA_SLOTS=2
+          ALIGN=1048576
+
+          # Vendor is preserved from the exact A042FXXSGEZF2 AP.
+          # The remaining group capacity is given to the minimized pmOS root.
+          VENDOR_ALIGNED=$(( (VENDOR_SIZE + ALIGN - 1) / ALIGN * ALIGN ))
+          ROOT_ALIGNED=$(( (ROOTFS_SIZE + ALIGN - 1) / ALIGN * ALIGN ))
+          USED=$((VENDOR_ALIGNED + ROOT_ALIGNED))
+          if [ "$USED" -gt "$GROUP_SIZE" ]; then
+            echo "lpmake inputs exceed main group"
+            exit 1
+          fi
+
+          ./lptools/bin/lpmake             --metadata-size "$METADATA_SIZE"             --super-name super             --metadata-slots "$METADATA_SLOTS"             --device "super:$SUPER_SIZE"             --alignment "$ALIGN"             --alignment-offset 0             --block-size 512             --group "main:$GROUP_SIZE"             --partition "vendor:readonly:$VENDOR_ALIGNED:main"             --image "vendor=vendor.img"             --partition "pmos_root:none:$ROOT_ALIGNED:main"             --image "pmos_root=pmos_root.img"             --output A04e-postmarketOS-super.img
+
+          test "$(stat -c '%s' A04e-postmarketOS-super.img)" -eq "$SUPER_SIZE"
+
+          ./lptools/bin/lpdump A04e-postmarketOS-super.img > final-super-lpdump.txt
+          grep -q 'Metadata slot count: 2' final-super-lpdump.txt
+          grep -q 'Partition name: super' final-super-lpdump.txt
+          grep -q 'Name: vendor' final-super-lpdump.txt
+          grep -q 'Name: pmos_root' final-super-lpdump.txt
+          grep -q 'Maximum size: 6782189568 bytes' final-super-lpdump.txt
+
+          sudo e2fsck -fn pmos_root.img
+          sha256sum A04e-postmarketOS-super.img A04e-postmarketOS-boot.img pmos_root.img > SHA256SUMS
+          cat final-super-lpdump.txt
+          cat SHA256SUMS
+
+      - name: Upload final flash artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: A04e-native-postmarketOS-TWRP-flash
+          path: |
+            A04e-postmarketOS-super.img
+            A04e-postmarketOS-boot.img
+            final-super-lpdump.txt
+            SHA256SUMS
+          compression-level: 0
+          retention-days: 30
