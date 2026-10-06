@@ -69,7 +69,9 @@ jobs:
           mkdir -p stock_parts
           ./lptools/bin/lpunpack stock-super.img stock_parts
           test -f stock_parts/vendor.img
+          test -f stock_parts/odm.img
           cp stock_parts/vendor.img vendor.img
+          cp stock_parts/odm.img odm.img
           rm -f stock-super.img
           rm -rf stock_parts
           df -h /
@@ -115,17 +117,20 @@ jobs:
 
           ROOT_SIZE="$(stat -c '%s' pmos_root.img)"
           VENDOR_SIZE="$(stat -c '%s' vendor.img)"
+          ODM_SIZE="$(stat -c '%s' odm.img)"
           GROUP_SIZE=6782189568
-          if [ "$((ROOT_SIZE + VENDOR_SIZE + 2097152))" -gt "$GROUP_SIZE" ]; then
+          if [ "$((ROOT_SIZE + VENDOR_SIZE + ODM_SIZE + 2097152))" -gt "$GROUP_SIZE" ]; then
             echo "ERROR: minimized pmOS rootfs is too large for the stock main group"
-            echo "root=$ROOT_SIZE vendor=$VENDOR_SIZE group=$GROUP_SIZE"
+            echo "root=$ROOT_SIZE vendor=$VENDOR_SIZE odm=$ODM_SIZE group=$GROUP_SIZE"
             exit 1
           fi
 
           echo "ROOT_SIZE=$ROOT_SIZE" >> "$GITHUB_ENV"
           echo "VENDOR_SIZE=$VENDOR_SIZE" >> "$GITHUB_ENV"
+          echo "ODM_SIZE=$ODM_SIZE" >> "$GITHUB_ENV"
           echo "PMOS_ROOT_SIZE=$ROOT_SIZE"
           echo "VENDOR_SIZE=$VENDOR_SIZE"
+          echo "ODM_SIZE=$ODM_SIZE"
           df -h /
 
       - name: Patch stock boot ramdisk for pmOS system-as-root
@@ -210,7 +215,7 @@ jobs:
           # The remaining group capacity is given to the minimized pmOS root.
           VENDOR_ALIGNED=$(( (VENDOR_SIZE + ALIGN - 1) / ALIGN * ALIGN ))
           ROOT_ALIGNED=$(( (ROOT_SIZE + ALIGN - 1) / ALIGN * ALIGN ))
-          USED=$((VENDOR_ALIGNED + ROOT_ALIGNED))
+          USED=$((VENDOR_ALIGNED + ODM_ALIGNED + ROOT_ALIGNED))
           if [ "$USED" -gt "$GROUP_SIZE" ]; then
             echo "lpmake inputs exceed main group"
             exit 1
@@ -224,6 +229,7 @@ jobs:
           grep -q 'Metadata slot count: 2' final-super-lpdump.txt
           grep -q 'Partition name: super' final-super-lpdump.txt
           grep -q 'Name: vendor' final-super-lpdump.txt
+          grep -q 'Name: odm' final-super-lpdump.txt
           grep -q 'Name: pmos_root' final-super-lpdump.txt
           grep -q 'Maximum size: 6782189568 bytes' final-super-lpdump.txt
 
