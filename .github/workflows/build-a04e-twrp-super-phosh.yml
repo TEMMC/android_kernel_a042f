@@ -17,13 +17,17 @@ jobs:
         shell: bash
         run: |
           set -eux
-          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc             /usr/local/share/powershell /usr/local/share/chromium             /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /usr/local/share/powershell /usr/local/share/chromium \
+            /opt/hostedtoolcache/CodeQL || true
           df -h /
 
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y             clang g++ make git curl unzip zip tar lz4 e2fsprogs cpio cargo             python3 python3-pip
+          sudo apt-get install -y \
+            clang g++ make git curl unzip zip tar lz4 zstd e2fsprogs cpio cargo \
+            python3 python3-pip
 
       - name: Build LP tools
         run: |
@@ -40,7 +44,9 @@ jobs:
         run: |
           set -eux
           cargo install samloader --version 2.2.0 --locked
-          samloader --model SM-A042F --region XFE download             --version A042FXXSGEZF2/A042FOJMGEZF2/A042FXXSGEZF2/A042FXXSGEZF2             --threads 8 --out-file A04e-stock.zip
+          samloader --model SM-A042F --region XFE download \
+            --version A042FXXSGEZF2/A042FOJMGEZF2/A042FXXSGEZF2/A042FXXSGEZF2 \
+            --threads 8 --out-file A04e-stock.zip
           unzip -t A04e-stock.zip >/dev/null
 
       - name: Extract only stock super and boot
@@ -63,7 +69,7 @@ jobs:
           ./lptools/bin/lpdump stock-super.img > stock-super-lpdump.txt
           grep -E 'Metadata version|Metadata max size|Metadata slot count|Size: 6786383872|Maximum size: 6782189568' stock-super-lpdump.txt
 
-      - name: Extract stock vendor then discard stock super
+      - name: Extract stock vendor and odm then discard stock super
         run: |
           set -eux
           mkdir -p stock_parts
@@ -211,17 +217,33 @@ jobs:
           METADATA_SLOTS=2
           ALIGN=1048576
 
-          # Vendor is preserved from the exact A042FXXSGEZF2 AP.
-          # The remaining group capacity is given to the minimized pmOS root.
           VENDOR_ALIGNED=$(( (VENDOR_SIZE + ALIGN - 1) / ALIGN * ALIGN ))
+          ODM_ALIGNED=$(( (ODM_SIZE + ALIGN - 1) / ALIGN * ALIGN ))
           ROOT_ALIGNED=$(( (ROOT_SIZE + ALIGN - 1) / ALIGN * ALIGN ))
           USED=$((VENDOR_ALIGNED + ODM_ALIGNED + ROOT_ALIGNED))
+
           if [ "$USED" -gt "$GROUP_SIZE" ]; then
             echo "lpmake inputs exceed main group"
+            echo "vendor=$VENDOR_ALIGNED odm=$ODM_ALIGNED root=$ROOT_ALIGNED group=$GROUP_SIZE"
             exit 1
           fi
 
-          ./lptools/bin/lpmake             --metadata-size "$METADATA_SIZE"             --super-name super             --metadata-slots "$METADATA_SLOTS"             --device "super:$SUPER_SIZE"             --alignment "$ALIGN"             --alignment-offset 0             --block-size 512             --group "main:$GROUP_SIZE"             --partition "vendor:readonly:$VENDOR_ALIGNED:main"             --image "vendor=vendor.img"             --partition "pmos_root:none:$ROOT_ALIGNED:main"             --image "pmos_root=pmos_root.img"             --output A04e-postmarketOS-super.img
+          ./lptools/bin/lpmake \
+            --metadata-size "$METADATA_SIZE" \
+            --super-name super \
+            --metadata-slots "$METADATA_SLOTS" \
+            --device "super:$SUPER_SIZE" \
+            --alignment "$ALIGN" \
+            --alignment-offset 0 \
+            --block-size 512 \
+            --group "main:$GROUP_SIZE" \
+            --partition "vendor:readonly:$VENDOR_ALIGNED:main" \
+            --image "vendor=vendor.img" \
+            --partition "odm:readonly:$ODM_ALIGNED:main" \
+            --image "odm=odm.img" \
+            --partition "pmos_root:none:$ROOT_ALIGNED:main" \
+            --image "pmos_root=pmos_root.img" \
+            --output A04e-postmarketOS-super.img
 
           test "$(stat -c '%s' A04e-postmarketOS-super.img)" -eq "$SUPER_SIZE"
 
@@ -238,14 +260,29 @@ jobs:
           cat final-super-lpdump.txt
           cat SHA256SUMS
 
-      - name: Upload final flash artifacts
+      - name: Create compressed flash package
+        shell: bash
+        run: |
+          set -eux
+          mkdir -p flash-package
+          cp A04e-postmarketOS-super.img flash-package/
+          cp A04e-postmarketOS-boot.img flash-package/
+          cp final-super-lpdump.txt flash-package/
+          cp SHA256SUMS flash-package/
+
+          tar --sparse -cf A04e-native-postmarketOS-TWRP-flash.tar -C flash-package .
+          zstd -T0 -19 --rm A04e-native-postmarketOS-TWRP-flash.tar
+          sha256sum A04e-native-postmarketOS-TWRP-flash.tar.zst > FLASH-ARCHIVE-SHA256
+
+          ls -lh A04e-native-postmarketOS-TWRP-flash.tar.zst FLASH-ARCHIVE-SHA256
+          zstd -t A04e-native-postmarketOS-TWRP-flash.tar.zst
+
+      - name: Upload compressed final flash package
         uses: actions/upload-artifact@v7
         with:
-          name: A04e-native-postmarketOS-TWRP-flash
+          name: A04e-native-postmarketOS-TWRP-flash-compressed
           path: |
-            A04e-postmarketOS-super.img
-            A04e-postmarketOS-boot.img
-            final-super-lpdump.txt
-            SHA256SUMS
+            A04e-native-postmarketOS-TWRP-flash.tar.zst
+            FLASH-ARCHIVE-SHA256
           compression-level: 0
           retention-days: 30
