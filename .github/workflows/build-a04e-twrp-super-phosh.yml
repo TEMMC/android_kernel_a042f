@@ -175,7 +175,7 @@ jobs:
                       out.append('pmos_root /system ext4 rw,barrier=1 wait,logical,first_stage_mount')
                       replaced = True
                       continue
-                  if mp in ('/product', '/system_ext', '/odm'):
+                  if mp in ('/product', '/system_ext'):
                       continue
               out.append(line)
           if not replaced:
