@@ -29,27 +29,24 @@ jobs:
             clang g++ make git curl unzip zip tar lz4 zstd e2fsprogs cpio cargo \
             python3 python3-pip
 
-      - name: Install prebuilt LP tools
+      - name: Build LP tools
         run: |
           set -eux
-          curl -L --fail --retry 3 \
-            https://github.com/itsNileshHere/android-lptools/releases/download/v1.0.0/android-lptools.zip \
-            -o android-lptools.zip
           rm -rf lptools
-          mkdir -p lptools/bin
-          unzip -q android-lptools.zip -d lptools
-          rm -f android-lptools.zip
-
-          # Normalize the release archive layout. Do not assume the ZIP
-          # contains a bin/ directory; locate the actual executables.
-          for tool in lpmake lpunpack lpdump; do
-            TOOL_PATH="$(find lptools -type f -name "$tool" -print -quit)"
-            test -n "$TOOL_PATH"
-            chmod +x "$TOOL_PATH"
-            cp -f "$TOOL_PATH" "lptools/bin/$tool"
-            test -x "lptools/bin/$tool"
-            "lptools/bin/$tool" --help >/dev/null
+          git clone --depth=1 https://github.com/itsNileshHere/android-lptools.git lptools
+          cd lptools
+          # Ubuntu 24.04 / newer libstdc++ requires these headers explicitly.
+          for f in lib/liblp/*.cpp partition_tools/*.cpp; do
+            grep -q '^#include <algorithm>' "$f" || sed -i '1i #include <algorithm>' "$f"
           done
+          chmod +x make.sh
+          ./make.sh
+          test -x bin/lpmake
+          test -x bin/lpunpack
+          test -x bin/lpdump
+          bin/lpmake --help >/dev/null
+          bin/lpunpack --help >/dev/null
+          bin/lpdump --help >/dev/null
 
       - name: Download exact stock A04e firmware
         run: |
