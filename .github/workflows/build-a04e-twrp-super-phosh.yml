@@ -61,9 +61,12 @@ jobs:
         run: |
           set -eux
           cargo install samloader --version 2.2.0 --locked
-          samloader --model SM-A042F --region XFE download \
+          samloader download \
+            --model SM-A042F \
+            --region XFE \
             --version A042FXXSGEZF2/A042FOJMGEZF2/A042FXXSGEZF2/A042FXXSGEZF2 \
-            --threads 8 --out-file A04e-stock.zip
+            --threads 8 \
+            --out-file A04e-stock.zip
           unzip -t A04e-stock.zip >/dev/null
 
       - name: Extract only stock super and boot
