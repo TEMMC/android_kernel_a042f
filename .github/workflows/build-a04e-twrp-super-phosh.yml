@@ -35,10 +35,12 @@ jobs:
           rm -rf lptools
           git clone --depth=1 https://github.com/itsNileshHere/android-lptools.git lptools
           cd lptools
-          # Ubuntu 24.04 / newer libstdc++ requires these headers explicitly.
-          for f in lib/liblp/*.cpp partition_tools/*.cpp; do
-            grep -q '^#include <algorithm>' "$f" || sed -i '1i #include <algorithm>' "$f"
-          done
+          # Ubuntu 24.04 / newer libstdc++ requires this header explicitly.
+          find lib/liblp -type f -name '*.cpp' -print0 |
+            while IFS= read -r -d '' f; do
+              grep -q '^#include <algorithm>' "$f" ||
+                sed -i '1i #include <algorithm>' "$f"
+            done
           chmod +x make.sh
           ./make.sh
           test -x bin/lpmake
@@ -60,7 +62,7 @@ jobs:
       - name: Extract only stock super and boot
         run: |
           set -eux
-          AP_NAME="$(unzip -Z1 A04e-stock.zip | grep '^AP_.*\.tar\.md5$' | head -n1)"
+          AP_NAME="$(unzip -Z1 A04e-stock.zip | grep '^AP_.*\\.tar\\.md5$' | head -n1)"
           test -n "$AP_NAME"
           echo "AP=$AP_NAME"
 
@@ -194,7 +196,7 @@ jobs:
               out.append(line)
           if not replaced:
               out.append('pmos_root /system ext4 rw,barrier=1 wait,logical,first_stage_mount')
-          open(p, 'w', encoding='utf-8').write('\n'.join(out) + '\n')
+          open(p, 'w', encoding='utf-8').write('\\n'.join(out) + '\\n')
           PY
 
           grep -nE 'pmos_root|/system|/vendor|/product|/system_ext|/odm' fstab-edit
