@@ -42,6 +42,9 @@ jobs:
                 sed -i '1i #include <algorithm>' "$f"
             done
           chmod +x make.sh
+          # The bundled make.sh forces -static; its glibc-static binaries
+          # segfault on Ubuntu 24.04. Build the host tools dynamically instead.
+          sed -i 's/^CFLAGS=-static$/CFLAGS=/' make.sh
           ./make.sh
           test -x bin/lpmake
           test -x bin/lpunpack
