@@ -36,17 +36,20 @@ jobs:
             https://github.com/itsNileshHere/android-lptools/releases/download/v1.0.0/android-lptools.zip \
             -o android-lptools.zip
           rm -rf lptools
-          mkdir -p lptools
+          mkdir -p lptools/bin
           unzip -q android-lptools.zip -d lptools
           rm -f android-lptools.zip
 
-          # Release layout is bin/{lpmake,lpunpack,lpdump}.
-          test -x lptools/bin/lpmake
-          test -x lptools/bin/lpunpack
-          test -x lptools/bin/lpdump
-          lptools/bin/lpmake --help >/dev/null
-          lptools/bin/lpunpack --help >/dev/null
-          lptools/bin/lpdump --help >/dev/null
+          # Normalize the release archive layout. Do not assume the ZIP
+          # contains a bin/ directory; locate the actual executables.
+          for tool in lpmake lpunpack lpdump; do
+            TOOL_PATH="$(find lptools -type f -name "$tool" -print -quit)"
+            test -n "$TOOL_PATH"
+            chmod +x "$TOOL_PATH"
+            cp -f "$TOOL_PATH" "lptools/bin/$tool"
+            test -x "lptools/bin/$tool"
+            "lptools/bin/$tool" --help >/dev/null
+          done
 
       - name: Download exact stock A04e firmware
         run: |
