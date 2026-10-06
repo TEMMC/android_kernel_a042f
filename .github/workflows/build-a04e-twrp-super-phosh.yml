@@ -49,9 +49,13 @@ jobs:
           test -x bin/lpmake
           test -x bin/lpunpack
           test -x bin/lpdump
-          bin/lpmake --help >/dev/null
-          bin/lpunpack --help >/dev/null
-          bin/lpdump --help >/dev/null
+          # Do not use --help here: this older lpmake source has a broken
+          # --help option that can dereference a null argument and segfault.
+          file bin/lpmake bin/lpunpack bin/lpdump
+          ldd bin/lpmake bin/lpunpack bin/lpdump
+          test -x bin/lpmake
+          test -x bin/lpunpack
+          test -x bin/lpdump
 
       - name: Download exact stock A04e firmware
         run: |
