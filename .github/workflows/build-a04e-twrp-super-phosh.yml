@@ -35,6 +35,7 @@ jobs:
           git clone --depth=1 https://github.com/itsNileshHere/android-lptools.git lptools
           cd lptools
           chmod +x make.sh
+          sed -i '1i #include <algorithm>' liblp/utility.cpp
           ./make.sh
           test -x bin/lpmake
           test -x bin/lpunpack
