@@ -211,45 +211,41 @@ jobs:
             out/SHA256SUMS
             out/artifact-sizes.txt
 
-  build-first-boot-tools:
-    runs-on: ubuntu-latest
-    steps:
       - name: Build first-boot tools bundle
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p bundle
           cat > bundle/packages.txt <<'EOF'
- bash
- curl
- wget
- git
- nano
- vim
- tar
- unzip
- zip
- xz
- gzip
- bzip2
- file
- rsync
- lsof
- procps
- htop
- util-linux
- e2fsprogs
- iproute2
- usbutils
- pciutils
- openssh-client
- ca-certificates
- mpv
- zathura
- zathura-pdf-poppler
- imv
+bash
+curl
+wget
+git
+nano
+vim
+tar
+unzip
+zip
+xz
+gzip
+bzip2
+file
+rsync
+lsof
+procps
+htop
+util-linux
+e2fsprogs
+iproute2
+usbutils
+pciutils
+openssh-client
+ca-certificates
+mpv
+zathura
+zathura-pdf-poppler
+imv
 EOF
-          sed -i 's/^ //' bundle/packages.txt
           cat > bundle/install.sh <<'EOF'
 #!/bin/sh
 set -eu
