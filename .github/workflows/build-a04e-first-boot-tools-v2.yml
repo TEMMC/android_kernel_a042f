@@ -1,0 +1,68 @@
+name: A04e First-Boot Tools v2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Build bundle
+        shell: bash
+        run: |
+          set -e
+          mkdir -p bundle
+          cat > bundle/packages.txt <<'EOF'
+bash
+curl
+wget
+git
+nano
+vim
+tar
+unzip
+zip
+xz
+gzip
+bzip2
+file
+rsync
+lsof
+procps
+htop
+util-linux
+e2fsprogs
+iproute2
+usbutils
+pciutils
+openssh-client
+ca-certificates
+mpv
+zathura
+zathura-pdf-poppler
+imv
+EOF
+
+          cat > bundle/install.sh <<'EOF'
+#!/bin/sh
+set -eu
+[ "$(id -u)" = 0 ] || { echo "Run as root: ./install.sh"; exit 1; }
+command -v apk >/dev/null || { echo "ERROR: apk not found; this is for postmarketOS/Alpine."; exit 1; }
+cd "$(dirname "$0")"
+apk update
+apk add --no-cache $(tr '\n' ' ' < packages.txt)
+echo "A04e first-boot tools installed."
+EOF
+          chmod +x bundle/install.sh
+
+          tar -czf A04e-first-boot-tools.tar.gz -C bundle .
+          sha256sum A04e-first-boot-tools.tar.gz > A04e-first-boot-tools.tar.gz.sha256
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: A04e-first-boot-tools
+          path: |
+            A04e-first-boot-tools.tar.gz
+            A04e-first-boot-tools.tar.gz.sha256
+          if-no-files-found: error
