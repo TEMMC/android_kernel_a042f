@@ -2,6 +2,9 @@ name: A04e First-Boot Tools v2
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - a04e
 
 jobs:
   build:
