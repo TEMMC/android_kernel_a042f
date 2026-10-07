@@ -2,20 +2,18 @@ name: A04e First Boot Tools
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - a04e
+
+permissions:
+  contents: read
 
 jobs:
   build-tools:
-    name: Build first-boot tools bundle
     runs-on: ubuntu-latest
-
     steps:
-      - name: Build bundle
+      - name: Build first-boot tools bundle
         shell: bash
         run: |
-          set -euo pipefail
+          set -e
 
           mkdir -p bundle
 
@@ -67,7 +65,6 @@ fi
 cd "$(dirname "$0")"
 apk update
 xargs apk add --no-cache < packages.txt
-
 echo "A04e first-boot tools installed successfully."
 EOF
 
@@ -76,15 +73,13 @@ EOF
           tar -czf A04e-first-boot-tools.tar.gz -C bundle .
           sha256sum A04e-first-boot-tools.tar.gz > A04e-first-boot-tools.tar.gz.sha256
 
+          tar -tzf A04e-first-boot-tools.tar.gz >/dev/null
           test -s A04e-first-boot-tools.tar.gz
           test -s A04e-first-boot-tools.tar.gz.sha256
 
-          echo "=== ARTIFACTS ==="
-          ls -lh A04e-first-boot-tools.tar.gz A04e-first-boot-tools.tar.gz.sha256
-          echo "=== SHA256 ==="
           cat A04e-first-boot-tools.tar.gz.sha256
 
-      - name: Upload tools bundle
+      - name: Upload tools
         uses: actions/upload-artifact@v4
         with:
           name: A04e-first-boot-tools
