@@ -1,0 +1,73 @@
+name: Build A04e First-Boot Tools
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Build tools bundle
+        run: |
+          set -eux
+          rm -rf bundle
+          mkdir -p bundle
+          cat > bundle/packages.txt <<'EOF'
+bash
+curl
+wget
+git
+nano
+vim
+tar
+unzip
+zip
+xz
+gzip
+bzip2
+file
+rsync
+lsof
+procps
+util-linux
+e2fsprogs
+iproute2
+usbutils
+pciutils
+openssh-client
+ca-certificates
+mpv
+zathura
+zathura-pdf-poppler
+imv
+EOF
+
+          cat > bundle/install.sh <<'EOF'
+#!/bin/sh
+set -eu
+
+if [ "$(id -u)" != 0 ]; then
+  echo "Run as root: sudo ./install.sh"
+  exit 1
+fi
+
+cd "$(dirname "$0")"
+apk update
+apk add --no-cache $(grep -v '^#' packages.txt | tr '\n' ' ')
+echo "A04e first-boot tools installed."
+EOF
+          chmod +x bundle/install.sh
+
+          tar -czf A04e-first-boot-tools.tar.gz -C bundle .
+          sha256sum A04e-first-boot-tools.tar.gz > A04e-first-boot-tools.tar.gz.sha256
+
+      - name: Upload tools bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: A04e-first-boot-tools
+          path: |
+            A04e-first-boot-tools.tar.gz
+            A04e-first-boot-tools.tar.gz.sha256
