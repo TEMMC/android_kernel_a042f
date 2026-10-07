@@ -119,3 +119,72 @@ jobs:
           path: out/postmarketos-a04e-arm64-rootfs.tar.xz
           if-no-files-found: error
           retention-days: 30
+
+  build-first-boot-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build first-boot tools bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p bundle
+          cat > bundle/packages.txt <<'EOF'
+bash
+curl
+wget
+git
+nano
+vim
+tar
+unzip
+zip
+xz
+gzip
+bzip2
+file
+rsync
+lsof
+procps
+htop
+util-linux
+e2fsprogs
+iproute2
+usbutils
+pciutils
+openssh-client
+ca-certificates
+mpv
+zathura
+zathura-pdf-poppler
+imv
+EOF
+          cat > bundle/install.sh <<'EOF'
+#!/bin/sh
+set -eu
+if [ "$(id -u)" -ne 0 ]; then
+  echo "Run as root: ./install.sh"
+  exit 1
+fi
+command -v apk >/dev/null 2>&1 || {
+  echo "ERROR: apk not found. This bundle is for postmarketOS/Alpine Linux."
+  exit 1
+}
+cd "$(dirname "$0")"
+apk update
+xargs apk add --no-cache < packages.txt
+echo "A04e first-boot tools installed."
+EOF
+          chmod +x bundle/install.sh
+          tar -czf A04e-first-boot-tools.tar.gz -C bundle .
+          sha256sum A04e-first-boot-tools.tar.gz > A04e-first-boot-tools.tar.gz.sha256
+          ls -lh A04e-first-boot-tools.tar.gz A04e-first-boot-tools.tar.gz.sha256
+
+      - name: Upload first-boot tools
+        uses: actions/upload-artifact@v4
+        with:
+          name: A04e-first-boot-tools
+          path: |
+            A04e-first-boot-tools.tar.gz
+            A04e-first-boot-tools.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 30
