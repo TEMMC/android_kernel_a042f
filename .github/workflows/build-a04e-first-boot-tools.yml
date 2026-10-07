@@ -15,6 +15,7 @@ jobs:
           set -eux
           rm -rf bundle
           mkdir -p bundle
+
           cat > bundle/packages.txt <<'EOF'
 bash
 curl
@@ -32,6 +33,7 @@ file
 rsync
 lsof
 procps
+htop
 util-linux
 e2fsprogs
 iproute2
@@ -50,13 +52,19 @@ EOF
 set -eu
 
 if [ "$(id -u)" != 0 ]; then
-  echo "Run as root: sudo ./install.sh"
+  echo "Run as root: ./install.sh"
   exit 1
 fi
 
 cd "$(dirname "$0")"
+
+if ! command -v apk >/dev/null 2>&1; then
+  echo "This bundle is for postmarketOS/Alpine Linux (apk)."
+  exit 1
+fi
+
 apk update
-apk add --no-cache $(grep -v '^#' packages.txt | tr '\n' ' ')
+apk add --no-cache $(grep -v '^#' packages.txt | grep -v '^$' | tr '\n' ' ')
 echo "A04e first-boot tools installed."
 EOF
           chmod +x bundle/install.sh
