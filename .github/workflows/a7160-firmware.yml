@@ -1,0 +1,79 @@
+name: A7160 ZCS8FXA1 firmware to GitHub Release
+
+on:
+  push:
+    branches:
+      - a04e
+    paths:
+      - .github/workflows/a7160-firmware.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  firmware:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd
+
+      - name: Install samloader
+        run: |
+          cargo install samloader --version 2.2.0 --locked
+
+      - name: Download exact Samsung firmware
+        run: |
+          set -euxo pipefail
+          mkdir -p firmware
+          samloader download -m SM-A7160 -r CHC -j 8 -d firmware
+
+          echo "Downloaded:"
+          ls -lh firmware
+
+          test "$(find firmware -maxdepth 1 -type f | wc -l)" -eq 1
+          FW="$(find firmware -maxdepth 1 -type f -print -quit)"
+          echo "FW=$FW" >> "$GITHUB_ENV"
+
+          case "$FW" in
+            *A7160ZCS8FXA1*) echo "Correct A7160ZCS8FXA1 firmware confirmed." ;;
+            *) echo "ERROR: downloaded filename does not contain A7160ZCS8FXA1"; exit 1 ;;
+          esac
+
+      - name: Try Zstandard compression
+        run: |
+          set -euxo pipefail
+          zstd -19 -T0 --rm "$FW" -o firmware/A7160ZCS8FXA1.zip.zst
+          test -s firmware/A7160ZCS8FXA1.zip.zst
+
+          echo "Compressed result:"
+          ls -lh firmware/A7160ZCS8FXA1.zip.zst
+
+      - name: Split for GitHub Release 2 GiB asset limit
+        run: |
+          set -euxo pipefail
+          mkdir -p release
+          split -b 1900M -d -a 2 firmware/A7160ZCS8FXA1.zip.zst release/A7160ZCS8FXA1.zip.zst.part-
+          sha256sum firmware/A7160ZCS8FXA1.zip.zst > release/SHA256SUMS
+          ls -lh release
+
+      - name: Create GitHub release and upload parts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          TAG="A7160ZCS8FXA1-compressed"
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --title "SM-A7160 A7160ZCS8FXA1 compressed firmware" \
+            --notes "Official Samsung SM-A7160 CHC A7160ZCS8FXA1 Android 13 firmware downloaded from Samsung FUS. The firmware archive is Zstandard-compressed and split into <2 GiB release assets for GitHub compatibility. Reassemble parts in numeric order, then run zstd -d." \
+            --latest=false \
+            release/A7160ZCS8FXA1.zip.zst.part-* release/SHA256SUMS
+
+      - name: Print release URL
+        run: |
+          echo "RELEASE=https://github.com/$GITHUB_REPOSITORY/releases/tag/A7160ZCS8FXA1-compressed"
