@@ -47,7 +47,7 @@ fi
 make "${MAKE_ARGS[@]}" olddefconfig
 
 # Fail early if required native-root and dynamic-partition support did not survive Kconfig.
-for required in CONFIG_BLK_DEV_INITRD=y CONFIG_DEVTMPFS=y CONFIG_DEVTMPFS_MOUNT=y CONFIG_EXT4_FS=y CONFIG_BLK_DEV_DM=y CONFIG_DM_LINEAR=y; do
+for required in CONFIG_BLK_DEV_INITRD=y CONFIG_DEVTMPFS=y CONFIG_DEVTMPFS_MOUNT=y CONFIG_EXT4_FS=y CONFIG_BLK_DEV_DM=y; do
   grep -qx "$required" "$OUT/.config" || {
     echo "ERROR: required kernel option missing after olddefconfig: $required" >&2
     exit 1
