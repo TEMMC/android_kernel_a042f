@@ -45,6 +45,15 @@ if [ -f "${RDIR}/arch/arm64/configs/custom.config" ]; then
 fi
 
 make "${MAKE_ARGS[@]}" olddefconfig
+
+# Fail early if required native-root and dynamic-partition support did not survive Kconfig.
+for required in CONFIG_BLK_DEV_INITRD=y CONFIG_DEVTMPFS=y CONFIG_DEVTMPFS_MOUNT=y CONFIG_EXT4_FS=y CONFIG_BLK_DEV_DM=y CONFIG_DM_LINEAR=y; do
+  grep -qx "$required" "$OUT/.config" || {
+    echo "ERROR: required kernel option missing after olddefconfig: $required" >&2
+    exit 1
+  }
+done
+
 make "${MAKE_ARGS[@]}" -j"$(nproc)"
 
 KERNEL_IMAGE="$OUT/arch/arm64/boot/Image.gz"
