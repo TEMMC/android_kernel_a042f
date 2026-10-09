@@ -1,64 +1,62 @@
 #!/bin/bash
+set -euo pipefail
+
 export ARCH=arm64
 export RDIR="$(pwd)"
-export KBUILD_BUILD_USER="@ravindu644"
+export KBUILD_BUILD_USER="TEMMC"
+export KBUILD_BUILD_HOST="github-actions"
 
-#init ksu next
-git submodule init && git submodule update
+BUILD_CROSS_COMPILE="${RDIR}/toolchains/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-"
+BUILD_CC="${RDIR}/toolchains/clang-r383902/bin/clang"
+OUT="${RDIR}/out"
+BUILD="${RDIR}/build"
+AIK="${RDIR}/AIK-Linux"
 
-#export toolchain paths
-export BUILD_CROSS_COMPILE="${RDIR}/toolchains/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-"
-export BUILD_CC="${RDIR}/toolchains/clang-r383902/bin/clang"
+for tool in "${BUILD_CROSS_COMPILE}gcc" "$BUILD_CC"; do
+    if [ ! -x "$tool" ]; then
+        echo "ERROR: required compiler not found or not executable: $tool" >&2
+        echo "Confirm the toolchains are present in this branch and checked out by GitHub Actions." >&2
+        exit 1
+    fi
+done
 
-#output dir
-if [ ! -d "${RDIR}/out" ]; then
-    mkdir -p "${RDIR}/out"
+mkdir -p "$OUT" "$BUILD"
+
+# Use the device defconfig and optional fragment; never open interactive menuconfig in CI.
+make -C "$RDIR" O="$OUT" ARCH=arm64 a04e_defconfig
+if [ -f "${RDIR}/custom.config" ]; then
+    bash "${RDIR}/scripts/kconfig/merge_config.sh" -m -O "$OUT" "$OUT/.config" "${RDIR}/custom.config"
 fi
 
-#build dir
-if [ ! -d "${RDIR}/build" ]; then
-    mkdir -p "${RDIR}/build"
-else
-    rm -rf "${RDIR}/build" && mkdir -p "${RDIR}/build"
-fi
+make -C "$RDIR" O="$OUT" ARCH=arm64 \
+    CROSS_COMPILE="$BUILD_CROSS_COMPILE" \
+    CC="$BUILD_CC" CLANG_TRIPLE=aarch64-linux-gnu- \
+    KCFLAGS=-w CONFIG_SECTION_MISMATCH_WARN_ONLY=y olddefconfig
 
-#build options
-export ARGS="
--C $(pwd) \
-O=$(pwd)/out \
--j$(nproc) \
-ARCH=arm64 \
-CROSS_COMPILE=${BUILD_CROSS_COMPILE} \
-CC=${BUILD_CC} \
-CLANG_TRIPLE=aarch64-linux-gnu- \
-KCFLAGS=-w \
-CONFIG_SECTION_MISMATCH_WARN_ONLY=y \
-"
+make -C "$RDIR" O="$OUT" -j"$(nproc)" ARCH=arm64 \
+    CROSS_COMPILE="$BUILD_CROSS_COMPILE" \
+    CC="$BUILD_CC" CLANG_TRIPLE=aarch64-linux-gnu- \
+    KCFLAGS=-w CONFIG_SECTION_MISMATCH_WARN_ONLY=y
 
-#build kernel image
-build_kernel(){
-    make ${ARGS} clean && make ${ARGS} mrproper
-    make ${ARGS} a04e_defconfig custom.config
-    make ${ARGS} menuconfig
-    make ${ARGS} || exit 1
-    cp out/arch/arm64/boot/Image.gz $(pwd)/arch/arm64/boot/Image.gz
-}
+KERNEL_IMAGE="$OUT/arch/arm64/boot/Image.gz"
+test -s "$KERNEL_IMAGE"
+test -x "$AIK/repackimg.sh"
+test -f "$AIK/split_img/boot.img-kernel"
 
-#build boot.img
-build_boot() {    
-    rm -f ${RDIR}/AIK-Linux/split_img/boot.img-kernel ${RDIR}/AIK-Linux/boot.img
-    cp "${RDIR}/out/arch/arm64/boot/Image.gz" ${RDIR}/AIK-Linux/split_img/boot.img-kernel
-    mkdir -p ${RDIR}/AIK-Linux/ramdisk/{debug_ramdisk,dev,metadata,mnt,proc,second_stage_resources,sys}
-    cd ${RDIR}/AIK-Linux && ./repackimg.sh --nosudo && mv image-new.img ${RDIR}/build/boot.img
-}
+# Repack the kernel using the existing A04e boot layout and ramdisk in AIK-Linux.
+cp "$KERNEL_IMAGE" "$AIK/split_img/boot.img-kernel"
+mkdir -p "$AIK/ramdisk/debug_ramdisk" "$AIK/ramdisk/dev" "$AIK/ramdisk/metadata" \
+    "$AIK/ramdisk/mnt" "$AIK/ramdisk/proc" "$AIK/ramdisk/second_stage_resources" "$AIK/ramdisk/sys"
+(
+    cd "$AIK"
+    ./repackimg.sh --nosudo
+    test -s image-new.img
+    mv image-new.img "$BUILD/boot.img"
+)
 
-#build odin flashable tar
-build_tar(){
-    cd ${RDIR}/build
-    tar -cvf "KernelSU-Next-SM-A042F.tar" boot.img && rm boot.img
-    echo -e "\n[i] Build Finished..!\n" && cd ${RDIR}
-}
-
-build_kernel
-build_boot
-build_tar
+(
+    cd "$BUILD"
+    tar -cf KernelSU-Next-SM-A042F.tar boot.img
+)
+test -s "$BUILD/KernelSU-Next-SM-A042F.tar"
+echo "Build complete: $BUILD/KernelSU-Next-SM-A042F.tar"
