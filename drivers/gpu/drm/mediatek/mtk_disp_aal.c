@@ -1321,9 +1321,9 @@ static int disp_aal_write_dre_to_reg(struct mtk_ddp_comp *comp,
 		comp->regs_pa + DISP_AAL_DRE_FLT_FORCE(11),
 	    DRE_REG_2(gain[27], 0, gain[28], 9), ~0);
 
+#endif /* CONFIG_MACH_MT6885 / MT6873 / MT6893 / MT6853 / MT6833 / MT6877 / MT6781 */
 	return 0;
 }
-#endif /* CONFIG_MTK_DRE30_SUPPORT */
 #if defined(CONFIG_MTK_DRE30_SUPPORT) || !defined(NOT_SUPPORT_CABC_HW)
 static int disp_aal_write_cabc_to_reg(struct mtk_ddp_comp *comp,
 	struct cmdq_pkt *handle, const struct DISP_AAL_PARAM *param)
