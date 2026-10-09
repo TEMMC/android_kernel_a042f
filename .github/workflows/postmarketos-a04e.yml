@@ -69,22 +69,19 @@ jobs:
           set -euxo pipefail
           export PATH="$HOME/.local/bin:$PATH"
           pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" checksum linux-samsung-a04e
-          pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" checksum android-headers-halium-a04e
-          pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" checksum libhybris-a04e
-          pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" checksum halium-a04e
           grep -A5 '^sha512sums=' pmaports/device/testing/linux-samsung-a04e/APKBUILD
 
       - name: Build A04e kernel package with pmbootstrap
         run: |
           set -euxo pipefail
           export PATH="$HOME/.local/bin:$PATH"
-          pmbootstrap --details-to-stdout --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" build linux-samsung-a04e android-headers-halium-a04e libhybris-a04e device-samsung-a04e --arch aarch64
+          pmbootstrap --details-to-stdout --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" build linux-samsung-a04e device-samsung-a04e --arch aarch64
 
       - name: Build postmarketOS initramfs/rootfs
         run: |
           set -euxo pipefail
           export PATH="$HOME/.local/bin:$PATH"
-          pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" install --no-fde --no-sshd --no-image --add android-headers-halium-a04e,libhybris-a04e,halium-a04e
+          pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" install --no-fde --no-sshd --no-image
           pmbootstrap --aports "$PWD/pmaports" --work "$RUNNER_TEMP/pmos-work" export
 
       - name: Collect artifacts
