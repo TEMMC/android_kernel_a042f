@@ -6,57 +6,64 @@ export RDIR="$(pwd)"
 export KBUILD_BUILD_USER="TEMMC"
 export KBUILD_BUILD_HOST="github-actions"
 
-BUILD_CROSS_COMPILE="${RDIR}/toolchains/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-"
-BUILD_CC="${RDIR}/toolchains/clang-r383902/bin/clang"
+# Use the cross compiler and LLVM packages installed by the workflow.
+BUILD_CROSS_COMPILE="aarch64-linux-gnu-"
+BUILD_CC="$(command -v clang)"
 OUT="${RDIR}/out"
 BUILD="${RDIR}/build"
 AIK="${RDIR}/AIK-Linux"
 
-for tool in "${BUILD_CROSS_COMPILE}gcc" "$BUILD_CC"; do
-    if [ ! -x "$tool" ]; then
-        echo "ERROR: required compiler not found or not executable: $tool" >&2
-        echo "Confirm the toolchains are present in this branch and checked out by GitHub Actions." >&2
-        exit 1
-    fi
-done
+command -v "${BUILD_CROSS_COMPILE}gcc" >/dev/null
+command -v "${BUILD_CC}" >/dev/null
+command -v ld.lld >/dev/null
+test -x "$AIK/repackimg.sh"
+test -f "$AIK/split_img/boot.img-dtb"
+test -f "$AIK/split_img/boot.img-ramdisk.cpio.gz"
+
+# The imported vendor tree contains Kconfig files with patch-marker '+' prefixes
+# and stray quote-only lines. Clean these in the runner checkout before Kconfig.
+find "$RDIR" -type f -name Kconfig \
+  -not -path "$RDIR/.git/*" -print0 |
+  xargs -0 -r sed -i -e 's/^+//' -e "/^'$/d"
 
 mkdir -p "$OUT" "$BUILD"
 
-# Use the device defconfig and optional fragment; never open interactive menuconfig in CI.
+# Use the A04e MT6765 configuration; never open interactive menuconfig in CI.
 make -C "$RDIR" O="$OUT" ARCH=arm64 a04e_defconfig
-if [ -f "${RDIR}/custom.config" ]; then
-    bash "${RDIR}/scripts/kconfig/merge_config.sh" -m -O "$OUT" "$OUT/.config" "${RDIR}/custom.config"
+if [ -f "${RDIR}/arch/arm64/configs/custom.config" ]; then
+    bash "$RDIR/scripts/kconfig/merge_config.sh" -m -O "$OUT" \
+      "$OUT/.config" "${RDIR}/arch/arm64/configs/custom.config"
 fi
 
 make -C "$RDIR" O="$OUT" ARCH=arm64 \
     CROSS_COMPILE="$BUILD_CROSS_COMPILE" \
-    CC="$BUILD_CC" CLANG_TRIPLE=aarch64-linux-gnu- \
+    CC="$BUILD_CC" LD=ld.lld CLANG_TRIPLE=aarch64-linux-gnu- \
     KCFLAGS=-w CONFIG_SECTION_MISMATCH_WARN_ONLY=y olddefconfig
 
 make -C "$RDIR" O="$OUT" -j"$(nproc)" ARCH=arm64 \
     CROSS_COMPILE="$BUILD_CROSS_COMPILE" \
-    CC="$BUILD_CC" CLANG_TRIPLE=aarch64-linux-gnu- \
+    CC="$BUILD_CC" LD=ld.lld CLANG_TRIPLE=aarch64-linux-gnu- \
     KCFLAGS=-w CONFIG_SECTION_MISMATCH_WARN_ONLY=y
 
 KERNEL_IMAGE="$OUT/arch/arm64/boot/Image.gz"
 test -s "$KERNEL_IMAGE"
-test -x "$AIK/repackimg.sh"
-test -f "$AIK/split_img/boot.img-kernel"
 
-# Repack the kernel using the existing A04e boot layout and ramdisk in AIK-Linux.
+# AIK's extracted source boot image deliberately omits the kernel blob from Git.
+# Supply the newly compiled kernel and preserve the A04e boot header, DTB and ramdisk.
 cp "$KERNEL_IMAGE" "$AIK/split_img/boot.img-kernel"
-mkdir -p "$AIK/ramdisk/debug_ramdisk" "$AIK/ramdisk/dev" "$AIK/ramdisk/metadata" \
-    "$AIK/ramdisk/mnt" "$AIK/ramdisk/proc" "$AIK/ramdisk/second_stage_resources" "$AIK/ramdisk/sys"
 (
     cd "$AIK"
     ./repackimg.sh --nosudo
     test -s image-new.img
-    mv image-new.img "$BUILD/boot.img"
+    install -m 0644 image-new.img "$BUILD/A04e-postmarketOS-boot.img"
 )
 
+# Keep a raw boot image for direct use and a tar archive for the existing workflow.
 (
     cd "$BUILD"
-    tar -cf KernelSU-Next-SM-A042F.tar boot.img
+    tar -cf A04e-postmarketOS-boot.tar A04e-postmarketOS-boot.img
+    sha256sum A04e-postmarketOS-boot.img A04e-postmarketOS-boot.tar > SHA256SUMS
 )
-test -s "$BUILD/KernelSU-Next-SM-A042F.tar"
-echo "Build complete: $BUILD/KernelSU-Next-SM-A042F.tar"
+test -s "$BUILD/A04e-postmarketOS-boot.img"
+test -s "$BUILD/A04e-postmarketOS-boot.tar"
+echo "Built boot image: $BUILD/A04e-postmarketOS-boot.img"
