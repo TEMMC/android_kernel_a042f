@@ -3,12 +3,12 @@
 pkgname=device-samsung-a04e
 pkgdesc="Samsung Galaxy A04e"
 pkgver=0.1
-pkgrel=0
+pkgrel=1
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
 options="!check !archcheck"
-depends="postmarketos-base linux-samsung-a04e android-headers-halium-a04e libhybris-a04e"
+depends="postmarketos-base linux-samsung-a04e"
 makedepends="devicepkg-dev"
 source="deviceinfo kernel-cmdline.conf"
 
