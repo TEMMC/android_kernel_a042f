@@ -1,20 +1,33 @@
 #!/sbin/busybox sh
+# Native postmarketOS initramfs for Samsung Galaxy A04e (SM-A042F / MT6765).
+# IMPORTANT: package a STATIC AArch64 BusyBox at /sbin/busybox and a compatible
+# static AArch64 dmsetup at /sbin/dmsetup. Do not use an x86-64 BusyBox.
 export PATH=/sbin:/bin:/usr/sbin:/usr/bin
 
 log() {
   echo "A04e-pmOS: $*" > /dev/kmsg 2>/dev/null || true
 }
 
-mkdir -p /proc /sys /dev /run /newroot
+fail() {
+  log "FATAL: $*"
+  exec /sbin/busybox sh
+}
+
+[ "$(uname -m 2>/dev/null)" = "aarch64" ] || fail "wrong kernel userspace architecture"
+[ -x /sbin/busybox ] || fail "missing /sbin/busybox"
+[ -x /sbin/dmsetup ] || fail "missing static ARM64 /sbin/dmsetup"
+
+mkdir -p /proc /sys /dev /run /newroot /dev/mapper
 mount -t proc proc /proc 2>/dev/null || true
 mount -t sysfs sysfs /sys 2>/dev/null || true
 mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
 /sbin/busybox mdev -s 2>/dev/null || true
 
-ROOTDEV=""
+# Find the physical super block device by its kernel partition name.
+SUPERDEV=""
 i=0
 while [ "$i" -lt 45 ]; do
-  for u in /sys/class/block/mmcblk*p*/uevent; do
+  for u in /sys/class/block/*/uevent; do
     [ -f "$u" ] || continue
     name="$(sed -n 's/^PARTNAME=//p' "$u" 2>/dev/null)"
     [ "$name" = "super" ] || continue
@@ -25,25 +38,40 @@ while [ "$i" -lt 45 ]; do
       min="$(sed -n 's/^MINOR=//p' "$u" 2>/dev/null)"
       [ -n "$maj" ] && [ -n "$min" ] && /sbin/busybox mknod "$d" b "$maj" "$min" 2>/dev/null || true
     fi
-    [ -b "$d" ] && ROOTDEV="$d"
+    [ -b "$d" ] && SUPERDEV="$d"
   done
-  [ -n "$ROOTDEV" ] && break
+  [ -n "$SUPERDEV" ] && break
   /sbin/busybox sleep 1
   i=$((i + 1))
 done
+[ -b "$SUPERDEV" ] || fail "physical super partition not found"
+log "physical super is $SUPERDEV"
 
-[ -n "$ROOTDEV" ] || { log "super partition not found"; exec /sbin/busybox sh; }
-log "using root device $ROOTDEV"
-mount -t ext4 -o rw,noatime "$ROOTDEV" /newroot 2>/dev/null || { log "super ext4 mount failed"; exec /sbin/busybox sh; }
-[ -x /newroot/sbin/init ] || { log "postmarketOS init not found on super"; exec /sbin/busybox sh; }
-
-if [ -e /sys/fs/selinux/enforce ]; then
-  echo 0 > /sys/fs/selinux/enforce 2>/dev/null || true
+# The prepared A04e super layout must place logical system at sector 2048
+# for 7,998,904 sectors (4,095,438,848 bytes). This is a dm-linear mapping;
+# never attempt to mount the physical super container as ext4.
+if [ ! -b /dev/mapper/pmos-root ]; then
+  /sbin/dmsetup create pmos-root --table "0 7998904 linear $SUPERDEV 2048" || fail "could not create dm-linear system mapping"
 fi
+
+# dmsetup builds the mapping; create its device node if udev/mdev did not.
+set -- $(/sbin/dmsetup info -c --noheadings -o major,minor pmos-root 2>/dev/null)
+[ -n "$1" ] && [ -n "$2" ] || fail "cannot read device-mapper major/minor"
+[ -b /dev/mapper/pmos-root ] || /sbin/busybox mknod /dev/mapper/pmos-root b "$1" "$2" || fail "cannot create root block node"
+
+i=0
+while [ ! -b /dev/mapper/pmos-root ] && [ "$i" -lt 10 ]; do
+  /sbin/busybox sleep 1
+  i=$((i + 1))
+done
+[ -b /dev/mapper/pmos-root ] || fail "logical system block device unavailable"
+
+mount -t ext4 -o rw,noatime /dev/mapper/pmos-root /newroot || fail "logical system ext4 mount failed"
+[ -x /newroot/sbin/init ] || fail "/newroot/sbin/init not found; wrong rootfs image"
 
 mkdir -p /newroot/dev /newroot/proc /newroot/sys /newroot/run
 mount --move /dev /newroot/dev 2>/dev/null || true
 mount --move /proc /newroot/proc 2>/dev/null || true
 mount --move /sys /newroot/sys 2>/dev/null || true
-log "switching to native postmarketOS from super"
+log "switching to native postmarketOS from logical system"
 exec /sbin/busybox switch_root -c /dev/console /newroot /sbin/init
