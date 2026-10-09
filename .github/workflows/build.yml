@@ -1,48 +1,76 @@
-name: Kernel Compilation
+name: A04e Kernel and Boot Image
 
 on:
   push:
     branches:
       - a04e
+      - postmarketos-a04e
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release Tag'
-        required: true
+        description: 'Optional release tag (leave blank to build an artifact only)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: a04e-kernel-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 180
 
     steps:
-    - name: Checkout source
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 1
+      - name: Checkout source and submodules
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
 
-    - name: Set up build environment
-      run: |
-        sudo apt update -y
-        sudo apt install libncurses5-dev -y
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential cpio flex gcc-aarch64-linux-gnu libelf-dev libncurses5-dev libssl-dev lld llvm clang make python3 rsync
 
-    - name: Compile Kernel
-      run: |
-        bash build_kernel.sh
+      - name: Validate required build inputs
+        run: |
+          test -f build_kernel.sh
+          test -d AIK-Linux
+          test -f AIK-Linux/repackimg.sh
+          test -x AIK-Linux/repackimg.sh
+          test -f arch/arm64/configs/a04e_defconfig
+          echo "Build inputs found."
 
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: KernelSU-Next-SM-A042F-${{ github.event.inputs.tag || github.sha }}
-        path: build/*.tar
+      - name: Compile kernel and package boot image
+        run: bash build_kernel.sh
 
-    - name: Create release
-      if: github.event_name == 'workflow_dispatch'
-      uses: ncipollo/release-action@v1
-      with:
-        tag: ${{ github.event.inputs.tag }}
-        name: "KernelSU-Next-SM-A042F-${{ github.event.inputs.tag }}"
-        draft: false
-        prerelease: false
-        token: ${{ secrets.TOKEN }}
-        artifacts: "build/*.tar"
-        body: "Commit SHA: ${{ github.sha }}"
+      - name: Verify output
+        run: |
+          test -s build/KernelSU-Next-SM-A042F.tar
+          tar -tf build/KernelSU-Next-SM-A042F.tar
+          echo "Boot-image artifact verified."
+
+      - name: Upload boot-image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: A04e-postmarketOS-boot-${{ github.sha }}
+          path: build/KernelSU-Next-SM-A042F.tar
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Create GitHub release
+        if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ inputs.tag }}
+          name: A04e boot image ${{ inputs.tag }}
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: build/KernelSU-Next-SM-A042F.tar
+          body: "Built from commit ${{ github.sha }} on branch ${{ github.ref_name }}."
