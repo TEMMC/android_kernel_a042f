@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 180
 
     steps:
@@ -34,34 +34,47 @@ jobs:
 
       - name: Install build dependencies
         run: |
+          set -euxo pipefail
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential cpio flex gcc-aarch64-linux-gnu libelf-dev libncurses5-dev libssl-dev lld llvm clang make python3 rsync
+          sudo apt-get install -y bc bison build-essential cpio flex gcc-aarch64-linux-gnu libelf-dev libncurses-dev libssl-dev lld llvm clang make python3 rsync
 
       - name: Validate required build inputs
         run: |
+          set -euxo pipefail
           test -f build_kernel.sh
-          test -d AIK-Linux
           test -f AIK-Linux/repackimg.sh
           test -x AIK-Linux/repackimg.sh
+          test -f AIK-Linux/split_img/boot.img-dtb
+          test -f AIK-Linux/split_img/boot.img-ramdisk.cpio.gz
           test -f arch/arm64/configs/a04e_defconfig
+          command -v clang
+          command -v aarch64-linux-gnu-gcc
           echo "Build inputs found."
 
-      - name: Compile kernel and package boot image
+      - name: Compile kernel and repack A04e boot image
         run: bash build_kernel.sh
 
       - name: Verify output
         run: |
-          test -s build/KernelSU-Next-SM-A042F.tar
-          tar -tf build/KernelSU-Next-SM-A042F.tar
-          echo "Boot-image artifact verified."
+          set -euxo pipefail
+          test -s build/A04e-postmarketOS-boot.img
+          test -s build/A04e-postmarketOS-boot.tar
+          tar -tf build/A04e-postmarketOS-boot.tar
+          sha256sum -c build/SHA256SUMS
+          file build/A04e-postmarketOS-boot.img
+          echo "Boot image output verified."
 
-      - name: Upload boot-image artifact
+      - name: Upload boot-image artifacts
         uses: actions/upload-artifact@v4
         with:
           name: A04e-postmarketOS-boot-${{ github.sha }}
-          path: build/KernelSU-Next-SM-A042F.tar
+          path: |
+            build/A04e-postmarketOS-boot.img
+            build/A04e-postmarketOS-boot.tar
+            build/SHA256SUMS
           if-no-files-found: error
           retention-days: 14
+          compression-level: 0
 
       - name: Create GitHub release
         if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
@@ -72,5 +85,5 @@ jobs:
           draft: false
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
-          artifacts: build/KernelSU-Next-SM-A042F.tar
-          body: "Built from commit ${{ github.sha }} on branch ${{ github.ref_name }}."
+          artifacts: build/A04e-postmarketOS-boot.img,build/A04e-postmarketOS-boot.tar,build/SHA256SUMS
+          body: "Built from commit ${{ github.sha }} on branch ${{ github.ref_name }}. Bootability with the custom super image has not been confirmed until device testing."
